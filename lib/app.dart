@@ -1,4 +1,5 @@
  
+import 'package:empanatrack_app/features/clientes/screens/registro_cliente_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -57,6 +58,15 @@ class EmpanaTrackApp extends ConsumerWidget {
           builder: (ctx, state) => RegistrarPagoScreen(
             clienteId: state.pathParameters['clienteId']!,
           ),
+        ),
+        GoRoute(
+          path:    '/nuevo-cliente',
+          builder: (ctx, state) {
+            final desdeNuevaVenta =
+                state.extra as bool? ?? false;
+            return RegistroClienteScreen(
+                desdeNuevaVenta: desdeNuevaVenta);
+          },
         ),
         GoRoute(
           path:    '/clientes',

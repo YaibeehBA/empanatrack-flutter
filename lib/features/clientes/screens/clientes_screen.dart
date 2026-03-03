@@ -14,24 +14,43 @@ class ClientesScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColores.background,
+      
+      // ── AppBar ────────────────────────────────────────────
       appBar: AppBar(
         backgroundColor: AppColores.primary,
         foregroundColor: Colors.white,
-        title:           const Text(
+        title: const Text(
           'Clientes',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
-            icon:     const Icon(Icons.refresh),
-            tooltip:  'Actualizar',
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Actualizar',
             onPressed: () => ref.invalidate(clientesProvider),
           ),
         ],
       ),
+
+      // ── FAB: Nuevo Cliente (AGREGADO) ────────────────────
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          await context.push('/nuevo-cliente');
+          ref.invalidate(clientesProvider);
+        },
+        backgroundColor: AppColores.accent,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.person_add_outlined),
+        label: const Text(
+          'Nuevo Cliente',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
+
+      // ── Body ──────────────────────────────────────────────
       body: clientesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error:   (e, _) => _ErrorWidget(
+        error: (e, _) => _ErrorWidget(
           onReintentar: () => ref.invalidate(clientesProvider),
         ),
         data: (clientes) {
@@ -58,8 +77,8 @@ class ClientesScreen extends ConsumerWidget {
                 child: RefreshIndicator(
                   onRefresh: () async => ref.invalidate(clientesProvider),
                   child: ListView.builder(
-                    padding:     const EdgeInsets.all(16),
-                    itemCount:   ordenados.length,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: ordenados.length,
                     itemBuilder: (ctx, i) =>
                         _ClienteCard(cliente: ordenados[i]),
                   ),
@@ -76,13 +95,13 @@ class ClientesScreen extends ConsumerWidget {
 // ── Banner con el total de deudas ──────────────────────────
 class _BannerTotal extends StatelessWidget {
   final double total;
-  final int    cantidad;
+  final int cantidad;
   const _BannerTotal({required this.total, required this.cantidad});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width:   double.infinity,
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: const BoxDecoration(
         color: AppColores.primary,
@@ -99,8 +118,8 @@ class _BannerTotal extends StatelessWidget {
               Text(
                 '\$${total.toStringAsFixed(2)}',
                 style: const TextStyle(
-                  color:      Colors.white,
-                  fontSize:   28,
+                  color: Colors.white,
+                  fontSize: 28,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -110,13 +129,13 @@ class _BannerTotal extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color:        Colors.white.withOpacity(0.15),
+              color: Colors.white.withOpacity(0.15),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
               '$cantidad clientes',
               style: const TextStyle(
-                color:      Colors.white,
+                color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -138,16 +157,16 @@ class _ClienteCard extends StatelessWidget {
     final colorSaldo = tieneDeuda ? AppColores.danger : AppColores.success;
 
     return Container(
-      margin:  const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color:        Colors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color:      Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
-            offset:     const Offset(0, 3),
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -156,14 +175,14 @@ class _ClienteCard extends StatelessWidget {
           Row(
             children: [
               CircleAvatar(
-                radius:          24,
+                radius: 24,
                 backgroundColor: AppColores.accent.withOpacity(0.12),
                 child: Text(
                   cliente.nombre[0].toUpperCase(),
                   style: const TextStyle(
-                    color:      AppColores.accent,
+                    color: AppColores.accent,
                     fontWeight: FontWeight.bold,
-                    fontSize:   18,
+                    fontSize: 18,
                   ),
                 ),
               ),
@@ -176,8 +195,8 @@ class _ClienteCard extends StatelessWidget {
                       cliente.nombre,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize:   15,
-                        color:      AppColores.textPrimary,
+                        fontSize: 15,
+                        color: AppColores.textPrimary,
                       ),
                     ),
                     if (cliente.empresa != null)
@@ -207,8 +226,8 @@ class _ClienteCard extends StatelessWidget {
                     '\$${cliente.saldoActual.toStringAsFixed(2)}',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize:   16,
-                      color:      colorSaldo,
+                      fontSize: 16,
+                      color: colorSaldo,
                     ),
                   ),
                   Text(
@@ -224,7 +243,7 @@ class _ClienteCard extends StatelessWidget {
           if (tieneDeuda) ...[
             const SizedBox(height: 12),
             SizedBox(
-              width:  double.infinity,
+              width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () => context.push(
                   '/registrar-pago/${cliente.id}',
@@ -236,7 +255,7 @@ class _ClienteCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                icon:  const Icon(Icons.payments_outlined, size: 18),
+                icon: const Icon(Icons.payments_outlined, size: 18),
                 label: const Text(
                   'Registrar cobro',
                   style: TextStyle(fontWeight: FontWeight.bold),
@@ -249,6 +268,7 @@ class _ClienteCard extends StatelessWidget {
     );
   }
 }
+
 // ── Widgets de estado ──────────────────────────────────────
 class _ErrorWidget extends StatelessWidget {
   final VoidCallback onReintentar;
@@ -267,7 +287,7 @@ class _ErrorWidget extends StatelessWidget {
           const SizedBox(height: 12),
           ElevatedButton(
             onPressed: onReintentar,
-            child:     const Text('Reintentar'),
+            child: const Text('Reintentar'),
           ),
         ],
       ),

@@ -420,6 +420,37 @@ class _SelectorClienteState extends State<_SelectorCliente> {
                     },
                   ),
                 ),
+                // ── NUEVO: Botón para crear cliente ─────────────
+                const Divider(height: 1),
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: AppColores.success.withOpacity(0.15),
+                    child: const Icon(
+                      Icons.person_add_outlined,
+                      color: AppColores.success,
+                    ),
+                  ),
+                  title: const Text(
+                    '+ Registrar nuevo cliente',
+                    style: TextStyle(
+                      color: AppColores.success,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  subtitle: const Text('El cliente no está en la lista'),
+                  onTap: () async {
+                    setState(() => _mostrarLista = false);
+                    // Navegar y esperar el cliente creado
+                    final nuevoCliente = await context.push<ClienteModel>(
+                      '/nuevo-cliente',
+                      extra: true, // desdeNuevaVenta = true
+                    );
+                    if (nuevoCliente != null) {
+                      widget.onSeleccionar(nuevoCliente);
+                    }
+                  },
+                ),
+                // ────────────────────────────────────────────────
               ],
             ),
           ),
