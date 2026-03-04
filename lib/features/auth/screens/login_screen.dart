@@ -1,3 +1,4 @@
+// lib/features/auth/screens/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -38,13 +39,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Escuchar cambios en el estado de auth
+    // ── Escuchar cambios en el estado de auth ─────────────────
     ref.listen<AuthState>(authProvider, (prev, next) {
       if (next.estado == AuthEstado.autenticado) {
         // Redirigir según el rol
         final rol = next.sesion!.rol;
-        if (rol == 'vendedor' || rol == 'administrador') {
+        if (rol == 'vendedor') {
           context.go('/dashboard');
+        } else if (rol == 'administrador') {
+          context.go('/admin');  // ← ADMIN va a /admin
         } else if (rol == 'cliente') {
           context.go('/mi-cuenta');
         }
@@ -73,9 +76,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                 // Logo / ícono
                 Container(
-                  width: 90, height: 90,
+                  width: 90,
+                  height: 90,
                   decoration: BoxDecoration(
-                    color:        AppColores.primary,
+                    color: AppColores.primary,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Center(
@@ -88,9 +92,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const Text(
                   'EmpanaTrack',
                   style: TextStyle(
-                    fontSize:   28,
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color:      AppColores.primary,
+                    color: AppColores.primary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -102,45 +106,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                 // Campo usuario
                 TextField(
-                  controller:    _usuarioCtrl,
+                  controller: _usuarioCtrl,
                   decoration: InputDecoration(
-                    labelText:    'Usuario',
-                    prefixIcon:   const Icon(Icons.person_outline),
-                    border:       OutlineInputBorder(
+                    labelText: 'Usuario',
+                    prefixIcon: const Icon(Icons.person_outline),
+                    border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    filled:      true,
-                    fillColor:   AppColores.surface,
+                    filled: true,
+                    fillColor: AppColores.surface,
                   ),
                 ),
                 const SizedBox(height: 16),
 
                 // Campo contraseña
                 TextField(
-                  controller:     _contraCtrl,
-                  obscureText:    !_verContrasena,
+                  controller: _contraCtrl,
+                  obscureText: !_verContrasena,
                   decoration: InputDecoration(
-                    labelText:    'Contraseña',
-                    prefixIcon:   const Icon(Icons.lock_outline),
-                    suffixIcon:   IconButton(
+                    labelText: 'Contraseña',
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
                       icon: Icon(_verContrasena
                           ? Icons.visibility_off
                           : Icons.visibility),
                       onPressed: () =>
                           setState(() => _verContrasena = !_verContrasena),
                     ),
-                    border:       OutlineInputBorder(
+                    border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    filled:      true,
-                    fillColor:   AppColores.surface,
+                    filled: true,
+                    fillColor: AppColores.surface,
                   ),
                 ),
                 const SizedBox(height: 28),
 
                 // Botón ingresar
                 SizedBox(
-                  width:  double.infinity,
+                  width: double.infinity,
                   height: 52,
                   child: ElevatedButton(
                     onPressed: cargando ? null : _login,
@@ -153,16 +157,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     child: cargando
                         ? const SizedBox(
-                            width: 22, height: 22,
+                            width: 22,
+                            height: 22,
                             child: CircularProgressIndicator(
-                              color:       Colors.white,
+                              color: Colors.white,
                               strokeWidth: 2.5,
                             ),
                           )
                         : const Text(
                             'Ingresar',
                             style: TextStyle(
-                              fontSize:   16,
+                              fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
                           ),

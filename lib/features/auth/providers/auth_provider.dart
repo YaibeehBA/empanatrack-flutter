@@ -3,6 +3,12 @@ import '../../../core/network/api_client.dart';
 import '../../../core/storage/token_storage.dart';
 import '../../../shared/models/usuario_sesion.dart';
 
+import '../../ventas/providers/reporte_provider.dart';
+import '../../ventas/providers/ventas_provider.dart';
+import '../../ventas/providers/productos_provider.dart';
+import '../../clientes/providers/clientes_provider.dart';
+import '../../../features/clientes/providers/registro_cliente_provider.dart';  
+
 // Estado posible del login
 enum AuthEstado { inicial, cargando, autenticado, error }
 
@@ -30,8 +36,11 @@ class AuthState {
   }
 }
 
+// MODIFICADO: AuthNotifier ahora recibe Ref
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier() : super(const AuthState());
+  final Ref _ref;
+  
+  AuthNotifier(this._ref) : super(const AuthState());
 
   // Verificar si ya hay sesión guardada al abrir la app
   Future<void> verificarSesion() async {
@@ -51,7 +60,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  // Hacer login
+  // MODIFICADO: Hacer login con limpieza de cache
   Future<void> login(String nombreUsuario, String contrasena) async {
     state = state.copyWith(estado: AuthEstado.cargando);
     try {
@@ -74,6 +83,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
         nombre: sesion.nombre,
       );
 
+      // NUEVO: Limpiar TODOS los providers cacheados del usuario anterior
+      _limpiarCache();
+
       state = state.copyWith(
         estado: AuthEstado.autenticado,
         sesion: sesion,
@@ -93,14 +105,25 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  // Cerrar sesión
+  // MODIFICADO: Cerrar sesión con limpieza de cache
   Future<void> logout() async {
     await TokenStorage.limpiar();
+    _limpiarCache();  // NUEVO: Limpiar cache al cerrar sesión
     state = const AuthState();
+  }
+
+  // NUEVO: Método privado para limpiar el cache de todos los providers
+  void _limpiarCache() {
+    // Invalidar todos los providers que cachean datos del usuario
+    _ref.invalidate(ventasHoyProvider);
+    _ref.invalidate(resumenDiaProvider);
+    _ref.invalidate(clientesProvider);
+    _ref.invalidate(productosProvider);
+    _ref.invalidate(empresasProvider);
   }
 }
 
-// El provider que usan las pantallas
+// MODIFICADO: El provider ahora pasa ref al AuthNotifier
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(
-  (ref) => AuthNotifier(),
+  (ref) => AuthNotifier(ref),
 );

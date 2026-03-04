@@ -36,28 +36,32 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
     final clientesAsync   = ref.watch(clientesProvider);
 
     // Escuchar éxito o error
-    ref.listen<NuevaVentaState>(nuevaVentaProvider, (prev, next) {
-      if (next.exitoso) {
-        // Refrescar dashboard al volver
-        ref.invalidate(resumenDiaProvider);
-        ref.invalidate(ventasHoyProvider);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content:         Text('✅ Venta registrada correctamente'),
-            backgroundColor: AppColores.success,
-          ),
-        );
-        context.pop();
-      }
-      if (next.error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content:         Text(next.error!),
-            backgroundColor: AppColores.danger,
-          ),
-        );
-      }
-    });
+   ref.listen<NuevaVentaState>(nuevaVentaProvider, (prev, next) {
+        if (next.exitoso) {
+          // Refrescar dashboard al volver
+          ref.invalidate(resumenDiaProvider);
+          ref.invalidate(ventasHoyProvider);
+          ref.invalidate(clientesProvider);
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Venta registrada correctamente'),
+              backgroundColor: AppColores.success,
+            ),
+          );
+          
+          context.pop();  // 
+        }
+        
+        if (next.error != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(next.error!),
+              backgroundColor: AppColores.danger,
+            ),
+          );
+        }
+      });
 
     return Scaffold(
       backgroundColor: AppColores.background,
@@ -324,7 +328,7 @@ class _SelectorClienteState extends State<_SelectorCliente> {
                               ),
                             ),
                             Text(
-                              'Saldo: \$${widget.seleccionado!.saldoActual.toStringAsFixed(2)}  •  CI: ${widget.seleccionado!.cedula}',
+                              'CI: ${widget.seleccionado!.cedula}  •  ${widget.seleccionado!.empresa ?? 'Independiente'}',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color:    AppColores.textSecond,
@@ -399,7 +403,7 @@ class _SelectorClienteState extends State<_SelectorCliente> {
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         subtitle: Text(
-                          '${c.empresa ?? 'Independiente'}  •  Debe: \$${c.saldoActual.toStringAsFixed(2)}',
+                           '${c.empresa ?? 'Independiente'}  •  CI: ${c.cedula}',
                         ),
                         leading: CircleAvatar(
                           backgroundColor: AppColores.accent.withOpacity(0.15),

@@ -1,4 +1,7 @@
- 
+import 'features/admin/screens/admin_dashboard_screen.dart';
+import 'features/admin/screens/vendedores_screen.dart';
+import 'features/admin/screens/empresas_screen.dart';
+import 'features/admin/screens/productos_screen.dart';
 import 'package:empanatrack_app/features/clientes/screens/registro_cliente_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,6 +43,22 @@ class EmpanaTrackApp extends ConsumerWidget {
         GoRoute(
           path:    '/login',
           builder: (ctx, state) => const LoginScreen(),
+        ),
+        GoRoute(
+          path:    '/admin',
+          builder: (ctx, state) => const AdminDashboardScreen(),
+        ),
+        GoRoute(
+          path:    '/admin/vendedores',
+          builder: (ctx, state) => const VendedoresScreen(),
+        ),
+        GoRoute(
+          path:    '/admin/empresas',
+          builder: (ctx, state) => const EmpresasScreen(),
+        ),
+        GoRoute(
+          path:    '/admin/productos',
+          builder: (ctx, state) => const ProductosScreen(),
         ),
         GoRoute(
           path:    '/dashboard',
