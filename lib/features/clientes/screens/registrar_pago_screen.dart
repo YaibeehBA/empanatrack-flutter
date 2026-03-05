@@ -74,7 +74,7 @@ class _RegistrarPagoScreenState extends ConsumerState<RegistrarPagoScreen> {
     // Invalidar TODOS los providers afectados
     ref.invalidate(clientesProvider);
     ref.invalidate(historialProvider(widget.clienteId));
-    ref.invalidate(resumenDiaProvider);
+    ref.invalidate(resumenDiaProvider('hoy'));
     ref.invalidate(ventasHoyProvider);        
 
     ScaffoldMessenger.of(context).showSnackBar(

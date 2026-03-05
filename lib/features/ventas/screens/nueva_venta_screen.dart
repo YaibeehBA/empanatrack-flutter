@@ -39,7 +39,7 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
    ref.listen<NuevaVentaState>(nuevaVentaProvider, (prev, next) {
         if (next.exitoso) {
           // Refrescar dashboard al volver
-          ref.invalidate(resumenDiaProvider);
+          ref.invalidate(resumenDiaProvider('hoy'));
           ref.invalidate(ventasHoyProvider);
           ref.invalidate(clientesProvider);
           
