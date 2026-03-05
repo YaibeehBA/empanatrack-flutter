@@ -10,11 +10,13 @@ import 'core/constants/colores.dart';
 import 'core/network/api_client.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
-import 'features/ventas/screens/dashboard_screen.dart';
+
 import 'features/ventas/screens/nueva_venta_screen.dart';
 import 'features/clientes/screens/clientes_screen.dart';
 import 'features/clientes/screens/mi_cuenta_screen.dart';
 import 'features/clientes/screens/registrar_pago_screen.dart';
+import 'features/ventas/screens/vendedor_shell.dart';
+
 
 class EmpanaTrackApp extends ConsumerWidget {
   const EmpanaTrackApp({super.key});
@@ -62,7 +64,7 @@ class EmpanaTrackApp extends ConsumerWidget {
         ),
         GoRoute(
           path:    '/dashboard',
-          builder: (ctx, state) => const DashboardScreen(),
+          builder: (ctx, state) => const VendedorShell(),
         ),
         GoRoute(
           path:    '/nueva-venta',
