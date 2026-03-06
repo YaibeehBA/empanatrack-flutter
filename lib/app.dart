@@ -11,6 +11,7 @@ import 'core/network/api_client.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
 
+import 'features/auth/screens/registro_screen.dart';
 import 'features/ventas/screens/nueva_venta_screen.dart';
 import 'features/clientes/screens/clientes_screen.dart';
 import 'features/clientes/screens/mi_cuenta_screen.dart';
@@ -45,6 +46,10 @@ class EmpanaTrackApp extends ConsumerWidget {
         GoRoute(
           path:    '/login',
           builder: (ctx, state) => const LoginScreen(),
+        ),
+        GoRoute(
+          path:    '/registro',
+          builder: (ctx, state) => const RegistroScreen(),
         ),
         GoRoute(
           path:    '/admin',

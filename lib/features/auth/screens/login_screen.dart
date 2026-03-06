@@ -1,4 +1,3 @@
-// lib/features/auth/screens/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -173,6 +172,58 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                   ),
                 ),
+
+                // ==================================================
+                // NUEVO BLOQUE: Botón de registro y separador
+                // ==================================================
+                const SizedBox(height: 24),
+
+                // Separador
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: Colors.grey.shade300)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        '¿No tienes cuenta?',
+                        style: TextStyle(
+                          color:   Colors.grey.shade500,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    Expanded(child: Divider(color: Colors.grey.shade300)),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // Botón de registro
+                SizedBox(
+                  width:  double.infinity,
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    onPressed: () => context.push('/registro'),
+                    icon:      const Icon(Icons.person_add_outlined),
+                    label:     const Text(
+                      'Crear cuenta nueva',
+                      style: TextStyle(
+                        fontSize:   15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColores.primary,
+                      side: const BorderSide(
+                        color: AppColores.primary, width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+                // ==================================================
               ],
             ),
           ),
