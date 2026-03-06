@@ -1,43 +1,44 @@
+// lib/features/ventas/screens/vendedor_shell.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/colores.dart';
 import 'dashboard_screen.dart';
 import 'historial_screen.dart';
 import '../../clientes/screens/clientes_screen.dart';
 
-class VendedorShell extends StatefulWidget {
+// Provider del tab activo — accesible desde cualquier pantalla
+final tabActivoProvider = StateProvider<int>((ref) => 0);
+
+class VendedorShell extends ConsumerWidget {
   const VendedorShell({super.key});
 
   @override
-  State<VendedorShell> createState() => _VendedorShellState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tab = ref.watch(tabActivoProvider);
 
-class _VendedorShellState extends State<VendedorShell> {
-  int _tab = 0;
+    final pantallas = const [
+      DashboardScreen(),
+      ClientesScreen(),
+      HistorialScreen(),
+      _ConfiguracionScreen(),
+    ];
 
-  final _pantallas = const [
-    DashboardScreen(),
-    ClientesScreen(),
-    HistorialScreen(),
-    _ConfiguracionScreen(),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
-        index: _tab,
-        children: _pantallas,
+        index: tab,
+        children: pantallas,
       ),
-      // FAB solo en dashboard
-      floatingActionButton: _tab == 0
+      floatingActionButton: tab == 0
           ? FloatingActionButton.extended(
               onPressed:       () => context.push('/nueva-venta'),
               backgroundColor: AppColores.accent,
               foregroundColor: Colors.white,
               icon:            const Icon(Icons.add),
-              label:           const Text('Nueva Venta',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              label:           const Text(
+                'Nueva Venta',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             )
           : null,
       bottomNavigationBar: Container(
@@ -59,32 +60,36 @@ class _VendedorShellState extends State<VendedorShell> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _NavItem(
-                  icono:     Icons.home_outlined,
+                  icono:       Icons.home_outlined,
                   iconoActivo: Icons.home_rounded,
-                  label:     'Inicio',
-                  activo:    _tab == 0,
-                  onTap:     () => setState(() => _tab = 0),
+                  label:       'Inicio',
+                  activo:      tab == 0,
+                  onTap:       () => ref
+                      .read(tabActivoProvider.notifier).state = 0,
                 ),
                 _NavItem(
-                  icono:     Icons.people_outline,
+                  icono:       Icons.people_outline,
                   iconoActivo: Icons.people_rounded,
-                  label:     'Clientes',
-                  activo:    _tab == 1,
-                  onTap:     () => setState(() => _tab = 1),
+                  label:       'Clientes',
+                  activo:      tab == 1,
+                  onTap:       () => ref
+                      .read(tabActivoProvider.notifier).state = 1,
                 ),
                 _NavItem(
-                  icono:     Icons.receipt_long_outlined,
+                  icono:       Icons.receipt_long_outlined,
                   iconoActivo: Icons.receipt_long_rounded,
-                  label:     'Historial',
-                  activo:    _tab == 2,
-                  onTap:     () => setState(() => _tab = 2),
+                  label:       'Historial',
+                  activo:      tab == 2,
+                  onTap:       () => ref
+                      .read(tabActivoProvider.notifier).state = 2,
                 ),
                 _NavItem(
-                  icono:     Icons.settings_outlined,
+                  icono:       Icons.settings_outlined,
                   iconoActivo: Icons.settings_rounded,
-                  label:     'Config.',
-                  activo:    _tab == 3,
-                  onTap:     () => setState(() => _tab = 3),
+                  label:       'Config.',
+                  activo:      tab == 3,
+                  onTap:       () => ref
+                      .read(tabActivoProvider.notifier).state = 3,
                 ),
               ],
             ),
@@ -95,12 +100,11 @@ class _VendedorShellState extends State<VendedorShell> {
   }
 }
 
-// ── Item del navbar ────────────────────────────────────────
 class _NavItem extends StatelessWidget {
-  final IconData icono;
-  final IconData iconoActivo;
-  final String   label;
-  final bool     activo;
+  final IconData     icono;
+  final IconData     iconoActivo;
+  final String       label;
+  final bool         activo;
   final VoidCallback onTap;
   const _NavItem({
     required this.icono,
@@ -113,8 +117,8 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
+      onTap:     onTap,
+      behavior:  HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding:  const EdgeInsets.symmetric(
@@ -130,8 +134,10 @@ class _NavItem extends StatelessWidget {
           children: [
             Icon(
               activo ? iconoActivo : icono,
-              color:  activo ? AppColores.primary : AppColores.textSecond,
-              size:   24,
+              color: activo
+                  ? AppColores.primary
+                  : AppColores.textSecond,
+              size: 24,
             ),
             const SizedBox(height: 3),
             Text(
@@ -153,7 +159,6 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-// ── Configuración (en desarrollo) ─────────────────────────
 class _ConfiguracionScreen extends StatelessWidget {
   const _ConfiguracionScreen();
 

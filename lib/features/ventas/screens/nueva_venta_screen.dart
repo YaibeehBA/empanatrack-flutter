@@ -1,4 +1,3 @@
-// lib/features/ventas/screens/nueva_venta_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -36,27 +35,36 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
     final clientesAsync   = ref.watch(clientesProvider);
 
     // Escuchar éxito o error
-   ref.listen<NuevaVentaState>(nuevaVentaProvider, (prev, next) {
+      ref.listen<NuevaVentaState>(nuevaVentaProvider, (prev, next) {
         if (next.exitoso) {
-          // Refrescar dashboard al volver
-          ref.invalidate(resumenDiaProvider('hoy'));
+          // Invalidar historial para todos los periodos
+          ref.invalidate(historialVentasProvider('hoy'));
+          ref.invalidate(historialVentasProvider('ayer'));
+          ref.invalidate(historialVentasProvider('semana'));
+          ref.invalidate(historialVentasProvider('mes'));
           ref.invalidate(ventasHoyProvider);
+          // Invalidar resumen para todos los periodos
+          ref.invalidate(resumenDiaProvider('hoy'));
+          ref.invalidate(resumenDiaProvider('ayer'));
+          ref.invalidate(resumenDiaProvider('semana'));
+          ref.invalidate(resumenDiaProvider('mes'));
+          // Invalidar clientes
           ref.invalidate(clientesProvider);
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('✅ Venta registrada correctamente'),
+              content:         Text('✅ Venta registrada correctamente'),
               backgroundColor: AppColores.success,
             ),
           );
-          
-          context.pop();  // 
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (context.mounted) context.pop();
+          });
         }
-        
         if (next.error != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(next.error!),
+              content:         Text(next.error!),
               backgroundColor: AppColores.danger,
             ),
           );

@@ -1,3 +1,4 @@
+// lib/features/ventas/screens/dashboard_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,12 +7,40 @@ import '../../../features/auth/providers/auth_provider.dart';
 import '../providers/reporte_provider.dart';
 import '../providers/ventas_provider.dart';
 import '../../../shared/widgets/venta_item.dart';
+import 'vendedor_shell.dart';
 
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refrescar();
+    });
+  }
+
+  void _refrescar() {
+    final periodo = ref.read(periodoSeleccionadoProvider);
+    ref.invalidate(resumenDiaProvider(periodo));
+    ref.invalidate(historialVentasProvider(periodo));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Refrescar cuando se vuelve al tab 0
+    ref.listen<int>(tabActivoProvider, (prev, next) {
+      if (next == 0 && prev != 0) {
+        _refrescar();
+      }
+    });
+
     final sesion  = ref.watch(authProvider).sesion;
     final periodo = ref.watch(periodoSeleccionadoProvider);
 
@@ -52,8 +81,7 @@ class DashboardScreen extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          ref.invalidate(resumenDiaProvider(periodo));
-          ref.invalidate(historialVentasProvider(periodo));
+          _refrescar();
         },
         child: CustomScrollView(
           slivers: [
@@ -95,8 +123,7 @@ class DashboardScreen extends ConsumerWidget {
                       ),
                     ),
                     GestureDetector(
-                      onTap: () =>
-                          ref.invalidate(historialVentasProvider(periodo)),
+                      onTap: _refrescar,
                       child: const Row(
                         children: [
                           Icon(Icons.refresh,
@@ -231,7 +258,7 @@ class _BloqueResumen extends ConsumerWidget {
       data: (r) => Column(
         children: [
 
-          // ── Fila 1: Contado | Fiado ──────────────────
+          // Fila 1: Contado | Fiado
           Row(
             children: [
               Expanded(
@@ -258,7 +285,7 @@ class _BloqueResumen extends ConsumerWidget {
 
           const SizedBox(height: 12),
 
-          // ── Fila 2: Total vendido ────────────────────
+          // Card total vendido
           _TotalVendidoCard(
             totalVendido: r.totalVendido,
             totalContado: r.totalContado,
@@ -272,7 +299,7 @@ class _BloqueResumen extends ConsumerWidget {
 }
 
 // ══════════════════════════════════════════════════════════
-//  STAT CARD (Contado / Fiado)
+//  STAT CARD
 // ══════════════════════════════════════════════════════════
 class _StatCard extends StatelessWidget {
   final Color  color;
@@ -430,7 +457,7 @@ class _TotalVendidoCard extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // Barra contado vs fiado
+          // Barra y leyenda
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -440,14 +467,14 @@ class _TotalVendidoCard extends StatelessWidget {
                   const Text(
                     'Contado vs Fiado',
                     style: TextStyle(
-                      color:   AppColores.textSecond,
+                      color:    AppColores.textSecond,
                       fontSize: 11,
                     ),
                   ),
                   Text(
                     '${(porcentajeContado * 100).toStringAsFixed(0)}% contado',
                     style: const TextStyle(
-                      color:   AppColores.textSecond,
+                      color:    AppColores.textSecond,
                       fontSize: 11,
                     ),
                   ),
@@ -460,12 +487,10 @@ class _TotalVendidoCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(6),
                 child: Stack(
                   children: [
-                    // Fondo = fiado
                     Container(
                       height: 10,
                       color:  AppColores.warning.withOpacity(0.25),
                     ),
-                    // Encima = contado
                     FractionallySizedBox(
                       widthFactor: porcentajeContado,
                       child: Container(
@@ -526,7 +551,7 @@ class _PillLeyenda extends StatelessWidget {
         Text(
           texto,
           style: const TextStyle(
-            color:   AppColores.textSecond,
+            color:    AppColores.textSecond,
             fontSize: 12,
           ),
         ),
@@ -536,7 +561,7 @@ class _PillLeyenda extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════
-//  SKELETON MIENTRAS CARGA
+//  SKELETON
 // ══════════════════════════════════════════════════════════
 class _ResumenSkeleton extends StatelessWidget {
   const _ResumenSkeleton();
@@ -576,7 +601,7 @@ class _SkeletonBox extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════
-//  LISTA RESUMIDA (máx 5 ventas en dashboard)
+//  LISTA RESUMIDA (máx 5)
 // ══════════════════════════════════════════════════════════
 class _SliverListaVentasResumida extends ConsumerWidget {
   final String periodo;
@@ -594,7 +619,9 @@ class _SliverListaVentasResumida extends ConsumerWidget {
           ),
         ),
       ),
-      error: (e, _) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+      error: (e, _) => const SliverToBoxAdapter(
+        child: SizedBox.shrink(),
+      ),
       data: (ventas) => ventas.isEmpty
           ? SliverToBoxAdapter(
               child: _EmptyVentas(periodo: periodo),

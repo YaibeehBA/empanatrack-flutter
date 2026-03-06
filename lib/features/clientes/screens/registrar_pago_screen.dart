@@ -10,6 +10,7 @@ import '../../ventas/providers/reporte_provider.dart';
 import '../../../shared/models/cliente_model.dart';
 import '../../../shared/models/venta_model.dart';
 
+
 class RegistrarPagoScreen extends ConsumerStatefulWidget {
   final String clienteId;
   const RegistrarPagoScreen({super.key, required this.clienteId});
@@ -69,13 +70,18 @@ class _RegistrarPagoScreenState extends ConsumerState<RegistrarPagoScreen> {
     );
 
     // Escuchar éxito o error
-   ref.listen<PagoState>(pagoProvider, (prev, next) {
+ ref.listen<PagoState>(pagoProvider, (prev, next) {
   if (next.exitoso) {
-    // Invalidar TODOS los providers afectados
+    // Invalidar TODOS los providers de datos
     ref.invalidate(clientesProvider);
     ref.invalidate(historialProvider(widget.clienteId));
-    ref.invalidate(resumenDiaProvider('hoy'));
-    ref.invalidate(ventasHoyProvider);        
+    ref.invalidate(ventasHoyProvider);
+
+    // Invalidar historial y resumen para todos los periodos
+    for (final p in ['hoy', 'ayer', 'semana', 'mes']) {
+      ref.invalidate(resumenDiaProvider(p));
+      ref.invalidate(historialVentasProvider(p));
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -83,11 +89,12 @@ class _RegistrarPagoScreenState extends ConsumerState<RegistrarPagoScreen> {
         backgroundColor: AppColores.success,
       ),
     );
-    // Pequeño delay para que los providers se reconstruyan antes de navegar
+
     Future.delayed(const Duration(milliseconds: 300), () {
       if (context.mounted) context.pop();
     });
   }
+
   if (next.error != null) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -97,6 +104,7 @@ class _RegistrarPagoScreenState extends ConsumerState<RegistrarPagoScreen> {
     );
   }
 });
+
 
     return Scaffold(
       backgroundColor: AppColores.background,

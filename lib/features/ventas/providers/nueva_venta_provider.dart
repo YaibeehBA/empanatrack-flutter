@@ -108,39 +108,36 @@ class NuevaVentaNotifier extends StateNotifier<NuevaVentaState> {
   }
 
   Future<void> registrarVenta() async {
-    // Validaciones
-    if (state.carrito.isEmpty) {
-      state = state.copyWith(error: 'Agrega al menos un producto.');
-      return;
-    }
-    if (state.tipo == 'credito' && state.clienteSelec == null) {
-      state = state.copyWith(error: 'Selecciona un cliente para ventas a crédito.');
-      return;
-    }
-
-    state = state.copyWith(cargando: true);
-
-    try {
-      await ApiClient.post('/ventas/', data: {
-        'cliente_id': state.clienteSelec?.id,
-        'tipo':       state.tipo,
-        'notas':      state.notas.isEmpty ? null : state.notas,
-        'detalle': state.carrito.map((i) => {
-          'producto_id':    i.producto.id,
-          'cantidad':       i.cantidad,
-          'precio_unitario': i.producto.precio,
-        }).toList(),
-      });
-
-      state = state.copyWith(cargando: false, exitoso: true);
-    } catch (e) {
-      String mensaje = 'Error al registrar la venta.';
-      if (e.toString().contains('400')) {
-        mensaje = 'Datos incorrectos. Verifica el formulario.';
-      }
-      state = state.copyWith(cargando: false, error: mensaje);
-    }
+  if (state.carrito.isEmpty) {
+    state = state.copyWith(error: 'Agrega al menos un producto.');
+    return;
   }
+  if (state.tipo == 'credito' && state.clienteSelec == null) {
+    state = state.copyWith(error: 'Selecciona un cliente para el fiado.');
+    return;
+  }
+
+  state = state.copyWith(cargando: true);
+  try {
+    await ApiClient.post('/ventas/', data: {
+      'tipo':       state.tipo,
+      'cliente_id': state.clienteSelec?.id,
+      'notas':      state.notas,
+      'detalle': state.carrito.map((item) => {
+        'producto_id': item.producto.id,
+        'cantidad':    item.cantidad,
+        'precio_unitario': item.producto.precio,
+      }).toList(),
+    });
+
+    state = state.copyWith(cargando: false, exitoso: true);
+  } catch (e) {
+    String msg = 'Error al registrar la venta.';
+    final match = RegExp(r'"detail":"([^"]+)"').firstMatch(e.toString());
+    if (match != null) msg = match.group(1)!;
+    state = state.copyWith(cargando: false, error: msg);
+  }
+}
 
   void resetear() {
     state = const NuevaVentaState();

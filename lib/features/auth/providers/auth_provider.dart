@@ -9,6 +9,7 @@ import '../../ventas/providers/productos_provider.dart';
 import '../../clientes/providers/clientes_provider.dart';
 import '../../../features/clientes/providers/registro_cliente_provider.dart';  
 
+
 // Estado posible del login
 enum AuthEstado { inicial, cargando, autenticado, error }
 
@@ -113,14 +114,26 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   // NUEVO: Método privado para limpiar el cache de todos los providers
-  void _limpiarCache() {
-    // Invalidar todos los providers que cachean datos del usuario
-    _ref.invalidate(ventasHoyProvider);
-    _ref.invalidate(resumenDiaProvider);
-    _ref.invalidate(clientesProvider);
-    _ref.invalidate(productosProvider);
-    _ref.invalidate(empresasProvider);
-  }
+ void _limpiarCache() {
+  // Providers simples
+  _ref.invalidate(ventasHoyProvider);
+  _ref.invalidate(clientesProvider);
+  _ref.invalidate(productosProvider);
+  _ref.invalidate(empresasProvider);
+
+  // Providers family — invalidar todos los periodos
+  _ref.invalidate(resumenDiaProvider('hoy'));
+  _ref.invalidate(resumenDiaProvider('ayer'));
+  _ref.invalidate(resumenDiaProvider('semana'));
+  _ref.invalidate(resumenDiaProvider('mes'));
+  _ref.invalidate(historialVentasProvider('hoy'));
+  _ref.invalidate(historialVentasProvider('ayer'));
+  _ref.invalidate(historialVentasProvider('semana'));
+  _ref.invalidate(historialVentasProvider('mes'));
+
+  // Resetear el periodo al default
+  _ref.read(periodoSeleccionadoProvider.notifier).state = 'hoy';
+}
 }
 
 // MODIFICADO: El provider ahora pasa ref al AuthNotifier

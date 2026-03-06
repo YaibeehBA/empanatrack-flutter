@@ -1,9 +1,11 @@
+// lib/features/ventas/screens/historial_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/colores.dart';
 import '../providers/ventas_provider.dart';
 import '../providers/reporte_provider.dart';
 import '../../../shared/models/venta_model.dart';
+import 'vendedor_shell.dart';
 
 class HistorialScreen extends ConsumerWidget {
   const HistorialScreen({super.key});
@@ -12,14 +14,24 @@ class HistorialScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final periodo = ref.watch(periodoSeleccionadoProvider);
 
+    // Refrescar cuando se activa el tab de historial
+    ref.listen<int>(tabActivoProvider, (prev, next) {
+      if (next == 2 && prev != 2) {
+        ref.invalidate(historialVentasProvider(periodo));
+        ref.invalidate(resumenDiaProvider(periodo));
+      }
+    });
+
     return Scaffold(
       backgroundColor: AppColores.background,
       appBar: AppBar(
-        backgroundColor: AppColores.primary,
-        foregroundColor: Colors.white,
+        backgroundColor:           AppColores.primary,
+        foregroundColor:           Colors.white,
         automaticallyImplyLeading: false,
-        title: const Text('Historial de Ventas',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Historial de Ventas',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
       ),
       body: Column(
         children: [
@@ -28,23 +40,30 @@ class HistorialScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             child: _SelectorPeriodo(
               seleccionado: periodo,
-              onChange: (p) =>
-                  ref.read(periodoSeleccionadoProvider.notifier).state = p,
+              onChange: (p) {
+                ref.read(periodoSeleccionadoProvider.notifier).state = p;
+                ref.invalidate(historialVentasProvider(p));
+                ref.invalidate(resumenDiaProvider(p));
+              },
             ),
           ),
 
-          // Resumen compacto del periodo
+          // Resumen compacto
           _ResumenCompacto(periodo: periodo),
 
           // Lista de ventas
-          Expanded(child: _ListaVentas(periodo: periodo)),
+          Expanded(
+            child: _ListaVentas(periodo: periodo),
+          ),
         ],
       ),
     );
   }
 }
 
-// ── Selector ───────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════
+//  SELECTOR DE PERIODO
+// ══════════════════════════════════════════════════════════
 class _SelectorPeriodo extends StatelessWidget {
   final String           seleccionado;
   final Function(String) onChange;
@@ -67,7 +86,8 @@ class _SelectorPeriodo extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color:      Colors.black.withOpacity(0.06),
-            blurRadius: 8, offset: const Offset(0, 2),
+            blurRadius: 8,
+            offset:     const Offset(0, 2),
           ),
         ],
       ),
@@ -88,14 +108,16 @@ class _SelectorPeriodo extends StatelessWidget {
                   borderRadius: BorderRadius.circular(9),
                 ),
                 child: Center(
-                  child: Text(o['l']!,
-                      style: TextStyle(
-                        fontSize:   13,
-                        fontWeight: FontWeight.bold,
-                        color: activo
-                            ? Colors.white
-                            : AppColores.textSecond,
-                      )),
+                  child: Text(
+                    o['l']!,
+                    style: TextStyle(
+                      fontSize:   13,
+                      fontWeight: FontWeight.bold,
+                      color: activo
+                          ? Colors.white
+                          : AppColores.textSecond,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -106,7 +128,9 @@ class _SelectorPeriodo extends StatelessWidget {
   }
 }
 
-// ── Resumen compacto ───────────────────────────────────────
+// ══════════════════════════════════════════════════════════
+//  RESUMEN COMPACTO
+// ══════════════════════════════════════════════════════════
 class _ResumenCompacto extends ConsumerWidget {
   final String periodo;
   const _ResumenCompacto({required this.periodo});
@@ -126,7 +150,8 @@ class _ResumenCompacto extends ConsumerWidget {
             boxShadow: [
               BoxShadow(
                 color:      Colors.black.withOpacity(0.05),
-                blurRadius: 6, offset: const Offset(0, 2),
+                blurRadius: 6,
+                offset:     const Offset(0, 2),
               ),
             ],
           ),
@@ -170,30 +195,48 @@ class _Stat extends StatelessWidget {
   final String label;
   final Color  color;
   const _Stat({
-    required this.valor, required this.label, required this.color,
+    required this.valor,
+    required this.label,
+    required this.color,
   });
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Text(valor, style: TextStyle(
-        fontSize: 15, fontWeight: FontWeight.bold, color: color,
-      )),
-      Text(label, style: const TextStyle(
-        fontSize: 11, color: AppColores.textSecond,
-      )),
-    ],
-  );
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          valor,
+          style: TextStyle(
+            fontSize:   15,
+            fontWeight: FontWeight.bold,
+            color:      color,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            color:    AppColores.textSecond,
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _Divider extends StatelessWidget {
   @override
-  Widget build(BuildContext context) => Container(
-    height: 30, width: 1, color: Colors.grey.shade200,
-  );
+  Widget build(BuildContext context) {
+    return Container(
+      height: 30, width: 1,
+      color:  Colors.grey.shade200,
+    );
+  }
 }
 
-// ── Lista de ventas con fecha y hora ───────────────────────
+// ══════════════════════════════════════════════════════════
+//  LISTA DE VENTAS
+// ══════════════════════════════════════════════════════════
 class _ListaVentas extends ConsumerWidget {
   final String periodo;
   const _ListaVentas({required this.periodo});
@@ -202,16 +245,23 @@ class _ListaVentas extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(historialVentasProvider(periodo));
     return async.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error:   (e, _) => Center(
+      loading: () => const Center(
+        child: CircularProgressIndicator(),
+      ),
+      error: (e, _) => Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.wifi_off, color: AppColores.textSecond, size: 40),
+            const Icon(Icons.wifi_off,
+                color: AppColores.textSecond, size: 40),
             const SizedBox(height: 8),
-            const Text('Error cargando ventas'),
+            const Text(
+              'Error cargando ventas',
+              style: TextStyle(color: AppColores.textSecond),
+            ),
             TextButton(
-              onPressed: () => ref.invalidate(historialVentasProvider(periodo)),
+              onPressed: () =>
+                  ref.invalidate(historialVentasProvider(periodo)),
               child: const Text('Reintentar'),
             ),
           ],
@@ -220,8 +270,10 @@ class _ListaVentas extends ConsumerWidget {
       data: (ventas) => ventas.isEmpty
           ? _Empty(periodo: periodo)
           : RefreshIndicator(
-              onRefresh: () async =>
-                  ref.invalidate(historialVentasProvider(periodo)),
+              onRefresh: () async {
+                ref.invalidate(historialVentasProvider(periodo));
+                ref.invalidate(resumenDiaProvider(periodo));
+              },
               child: ListView.builder(
                 padding:     const EdgeInsets.fromLTRB(16, 4, 16, 16),
                 itemCount:   ventas.length,
@@ -232,7 +284,9 @@ class _ListaVentas extends ConsumerWidget {
   }
 }
 
-// ── Card de venta con fecha y hora ─────────────────────────
+// ══════════════════════════════════════════════════════════
+//  VENTA CARD CON FECHA Y HORA
+// ══════════════════════════════════════════════════════════
 class _VentaCard extends StatelessWidget {
   final VentaModel venta;
   const _VentaCard({required this.venta});
@@ -240,126 +294,209 @@ class _VentaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final esCredito = venta.tipo == 'credito';
-    final colorTipo = esCredito ? AppColores.warning : AppColores.success;
-    final labelTipo = esCredito ? 'FIADO'            : 'CONTADO';
-    final fechaHora = _formatearFechaHora(venta.fechaVenta);
+    final estado    = venta.estado;
+    final config    = _configEstado(esCredito, estado);
 
     return Container(
-      margin:  const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color:        Colors.white,
         borderRadius: BorderRadius.circular(14),
+        border: Border(
+          left: BorderSide(color: config.colorBorde, width: 4),
+        ),
         boxShadow: [
           BoxShadow(
             color:      Colors.black.withOpacity(0.04),
-            blurRadius: 8, offset: const Offset(0, 2),
+            blurRadius: 8,
+            offset:     const Offset(0, 2),
           ),
         ],
       ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              // Ícono tipo
-              Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color:        colorTipo.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Text(
-                    esCredito ? '📋' : '💵',
-                    style: const TextStyle(fontSize: 22),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                // Ícono
+                Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(
+                    color:        config.colorFondo,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(
+                    child: Text(
+                      config.icono,
+                      style: const TextStyle(fontSize: 20),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
+                const SizedBox(width: 12),
 
-              // Info principal
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                // Nombre y fecha
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        venta.cliente ?? 'Venta al contado',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize:   14,
+                          color:      AppColores.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          const Icon(Icons.access_time,
+                              size: 11,
+                              color: AppColores.textSecond),
+                          const SizedBox(width: 3),
+                          Text(
+                            _formatearFecha(venta.fechaVenta),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color:    AppColores.textSecond,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Monto
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      venta.cliente ?? 'Venta de contado',
+                      '\$${venta.montoTotal.toStringAsFixed(2)}',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize:   14,
+                        fontSize:   16,
                         color:      AppColores.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    // Fecha y hora
-                    Row(
-                      children: [
-                        const Icon(Icons.access_time,
-                            size: 11, color: AppColores.textSecond),
-                        const SizedBox(width: 3),
-                        Text(
-                          fechaHora,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color:    AppColores.textSecond,
-                          ),
+                    if (esCredito && estado == 'parcial')
+                      Text(
+                        'Debe \$${venta.montoPendiente.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize:   11,
+                          color:      AppColores.warning,
+                          fontWeight: FontWeight.w500,
                         ),
-                      ],
-                    ),
+                      ),
+                    if (esCredito && estado == 'pagado')
+                      const Text(
+                        'Pagado ✓',
+                        style: TextStyle(
+                          fontSize:   11,
+                          color:      AppColores.success,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    if (esCredito && estado == 'pendiente')
+                      Text(
+                        'Debe \$${venta.montoPendiente.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize:   11,
+                          color:      AppColores.danger,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                   ],
                 ),
-              ),
+              ],
+            ),
 
-              // Monto
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '\$${venta.montoTotal.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize:   16,
-                      color:      AppColores.textPrimary,
-                    ),
-                  ),
-                  if (esCredito && venta.montoPendiente > 0)
-                    Text(
-                      'Debe \$${venta.montoPendiente.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 11, color: AppColores.danger,
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
+            const SizedBox(height: 10),
+            const Divider(height: 1, color: Color(0xFFF0F0F0)),
+            const SizedBox(height: 8),
 
-          const SizedBox(height: 10),
-          const Divider(height: 1),
-          const SizedBox(height: 8),
-
-          // Badges tipo y estado
-          Row(
-            children: [
-              _Badge(label: labelTipo, color: colorTipo),
-              const SizedBox(width: 6),
-              if (esCredito)
+            // Badges
+            Row(
+              children: [
                 _Badge(
-                  label: venta.estado.toUpperCase(),
-                  color: _colorEstado(venta.estado),
+                  label: esCredito ? 'FIADO' : 'CONTADO',
+                  color: esCredito
+                      ? AppColores.warning
+                      : AppColores.success,
                 ),
-            ],
-          ),
-        ],
+                const SizedBox(width: 6),
+                if (esCredito)
+                  _Badge(
+                    label: config.labelEstado,
+                    color: config.colorEstado,
+                  ),
+                const Spacer(),
+                Text(
+                  config.mensajeAyuda,
+                  style: TextStyle(
+                    fontSize:   10,
+                    color:      config.colorEstado,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  String _formatearFechaHora(String fechaStr) {
+  _ConfigVenta _configEstado(bool esCredito, String estado) {
+    if (!esCredito) {
+      return _ConfigVenta(
+        icono:        '💵',
+        colorBorde:   AppColores.success,
+        colorFondo:   AppColores.success.withOpacity(0.10),
+        colorEstado:  AppColores.success,
+        labelEstado:  'PAGADO',
+        mensajeAyuda: 'Cobrado al momento',
+      );
+    }
+    switch (estado) {
+      case 'pagado':
+        return _ConfigVenta(
+          icono:        '✅',
+          colorBorde:   AppColores.success,
+          colorFondo:   AppColores.success.withOpacity(0.10),
+          colorEstado:  AppColores.success,
+          labelEstado:  'PAGADO',
+          mensajeAyuda: 'Deuda saldada',
+        );
+      case 'parcial':
+        return _ConfigVenta(
+          icono:        '⏳',
+          colorBorde:   AppColores.warning,
+          colorFondo:   AppColores.warning.withOpacity(0.10),
+          colorEstado:  AppColores.warning,
+          labelEstado:  'PARCIAL',
+          mensajeAyuda: 'Pago parcial recibido',
+        );
+      default:
+        return _ConfigVenta(
+          icono:        '📋',
+          colorBorde:   AppColores.danger,
+          colorFondo:   AppColores.danger.withOpacity(0.08),
+          colorEstado:  AppColores.danger,
+          labelEstado:  'PENDIENTE',
+          mensajeAyuda: 'Sin pago aún',
+        );
+    }
+  }
+
+  String _formatearFecha(String fechaStr) {
     try {
       final dt     = DateTime.parse(fechaStr).toLocal();
-      const meses  = ['','Ene','Feb','Mar','Abr','May','Jun',
-                      'Jul','Ago','Sep','Oct','Nov','Dic'];
+      const meses  = ['','Ene','Feb','Mar','Abr','May',
+                      'Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
       final hora   = dt.hour.toString().padLeft(2, '0');
       final minuto = dt.minute.toString().padLeft(2, '0');
       return '${dt.day} ${meses[dt.month]} — $hora:$minuto';
@@ -367,14 +504,23 @@ class _VentaCard extends StatelessWidget {
       return fechaStr;
     }
   }
+}
 
-  Color _colorEstado(String e) {
-    switch (e) {
-      case 'pagado':  return AppColores.success;
-      case 'parcial': return AppColores.warning;
-      default:        return AppColores.danger;
-    }
-  }
+class _ConfigVenta {
+  final String icono;
+  final Color  colorBorde;
+  final Color  colorFondo;
+  final Color  colorEstado;
+  final String labelEstado;
+  final String mensajeAyuda;
+  const _ConfigVenta({
+    required this.icono,
+    required this.colorBorde,
+    required this.colorFondo,
+    required this.colorEstado,
+    required this.labelEstado,
+    required this.mensajeAyuda,
+  });
 }
 
 class _Badge extends StatelessWidget {
@@ -383,19 +529,28 @@ class _Badge extends StatelessWidget {
   const _Badge({required this.label, required this.color});
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    decoration: BoxDecoration(
-      color:        color.withOpacity(0.12),
-      borderRadius: BorderRadius.circular(6),
-    ),
-    child: Text(label,
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color:        color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
         style: TextStyle(
-          fontSize: 10, fontWeight: FontWeight.bold, color: color,
-        )),
-  );
+          fontSize:   10,
+          fontWeight: FontWeight.bold,
+          color:      color,
+        ),
+      ),
+    );
+  }
 }
 
+// ══════════════════════════════════════════════════════════
+//  EMPTY STATE
+// ══════════════════════════════════════════════════════════
 class _Empty extends StatelessWidget {
   final String periodo;
   const _Empty({required this.periodo});
@@ -420,7 +575,8 @@ class _Empty extends StatelessWidget {
               msgs[periodo] ?? 'Sin ventas.',
               textAlign: TextAlign.center,
               style: const TextStyle(
-                color: AppColores.textSecond, fontSize: 14,
+                color:    AppColores.textSecond,
+                fontSize: 14,
               ),
             ),
           ],
