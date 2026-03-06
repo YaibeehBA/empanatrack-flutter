@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "640948669949",
+    "project_id": "empanatrack-993be",
+    "storage_bucket": "empanatrack-993be.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:640948669949:android:9547781525b03bbfaa5d94",
+        "android_client_info": {
+          "package_name": "com.empanatrack.empanatrack_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA0RarG6OlY9YyXIQrbGt7JANO8umev6Iw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

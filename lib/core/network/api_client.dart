@@ -61,4 +61,29 @@ class ApiClient {
   static Future<Response> delete(String path) async {
     return await _dio.delete(path);
   }
+  // Métodos sin autenticación (para registro y endpoints públicos)
+static Future<Response> getPublico(
+  String path, {
+  Map<String, dynamic>? params,
+}) async {
+  final dio = Dio(BaseOptions(
+    baseUrl:         _baseUrl,
+    connectTimeout:  const Duration(seconds: 10),
+    receiveTimeout:  const Duration(seconds: 10),
+  ));
+  return await dio.get(path, queryParameters: params);
 }
+
+static Future<Response> postPublico(
+  String path, {
+  required Map<String, dynamic> data,
+}) async {
+  final dio = Dio(BaseOptions(
+    baseUrl:        _baseUrl,
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 10),
+  ));
+  return await dio.post(path, data: data);
+}
+}
+

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/services/notificaciones_service.dart';
 import '../../../core/storage/token_storage.dart';
 import '../../../shared/models/usuario_sesion.dart';
 
@@ -84,6 +85,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
         nombre: sesion.nombre,
       );
 
+     
+
+// Registrar token FCM
+     
+      await NotificacionesService.registrarToken();
+      print('📲 [AUTH] Token FCM registrado');
+
       // NUEVO: Limpiar TODOS los providers cacheados del usuario anterior
       _limpiarCache();
 
@@ -106,8 +114,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+
   // MODIFICADO: Cerrar sesión con limpieza de cache
   Future<void> logout() async {
+    await NotificacionesService.eliminarToken();
     await TokenStorage.limpiar();
     _limpiarCache();  // NUEVO: Limpiar cache al cerrar sesión
     state = const AuthState();

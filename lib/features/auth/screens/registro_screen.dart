@@ -1,29 +1,46 @@
+// lib/features/auth/screens/registro_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/colores.dart';
 import '../providers/registro_publico_provider.dart';
 
+// Providers locales para el paso de empresa
+final _busquedaEmpresaProvider = StateProvider<String>((ref) => '');
+final _empresaSelecProvider =
+    StateProvider<EmpresaOpcion?>((ref) => null);
+final _modoEmpresaProvider =
+    StateProvider<String>((ref) => 'ninguna');
+// ninguna | existente | nueva
+
 class RegistroScreen extends ConsumerStatefulWidget {
   const RegistroScreen({super.key});
 
   @override
-  ConsumerState<RegistroScreen> createState() => _RegistroScreenState();
+  ConsumerState<RegistroScreen> createState() =>
+      _RegistroScreenState();
 }
 
 class _RegistroScreenState extends ConsumerState<RegistroScreen> {
+  // Controllers datos personales
+  final _cedulaCtrl  = TextEditingController();
+  final _nombreCtrl  = TextEditingController();
+  final _correoCtrl  = TextEditingController();
+  final _teleCtrl    = TextEditingController();
 
-  final _cedulaCtrl   = TextEditingController();
-  final _nombreCtrl   = TextEditingController();
-  final _correoCtrl   = TextEditingController();
-  final _teleCtrl     = TextEditingController();
-  final _usuarioCtrl  = TextEditingController();
-  final _contraCtrl   = TextEditingController();
-  final _contra2Ctrl  = TextEditingController();
+  // Controllers empresa nueva
+  final _empresaNombreCtrl    = TextEditingController();
+  final _empresaDireccionCtrl = TextEditingController();
+  final _empresaTelefonoCtrl  = TextEditingController();
+
+  // Controllers acceso
+  final _usuarioCtrl = TextEditingController();
+  final _contraCtrl  = TextEditingController();
+  final _contra2Ctrl = TextEditingController();
 
   bool _verContra  = false;
   bool _verContra2 = false;
-  int  _paso       = 1; // 1 = datos personales, 2 = credenciales
+  int  _paso       = 1; // 1=datos, 2=empresa, 3=acceso
 
   @override
   void dispose() {
@@ -31,6 +48,9 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
     _nombreCtrl.dispose();
     _correoCtrl.dispose();
     _teleCtrl.dispose();
+    _empresaNombreCtrl.dispose();
+    _empresaDireccionCtrl.dispose();
+    _empresaTelefonoCtrl.dispose();
     _usuarioCtrl.dispose();
     _contraCtrl.dispose();
     _contra2Ctrl.dispose();
@@ -48,6 +68,19 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
         return;
       }
       setState(() => _paso = 2);
+    } else if (_paso == 2) {
+      final modo = ref.read(_modoEmpresaProvider);
+      if (modo == 'existente' &&
+          ref.read(_empresaSelecProvider) == null) {
+        _error('Selecciona una empresa de la lista.');
+        return;
+      }
+      if (modo == 'nueva' &&
+          _empresaNombreCtrl.text.trim().isEmpty) {
+        _error('Escribe el nombre de la empresa.');
+        return;
+      }
+      setState(() => _paso = 3);
     } else {
       _registrar();
     }
@@ -67,13 +100,24 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
       return;
     }
 
+    final modo         = ref.read(_modoEmpresaProvider);
+    final empresaSelec = ref.read(_empresaSelecProvider);
+
     await ref.read(registroPublicoProvider.notifier).registrar(
-      cedula:        _cedulaCtrl.text.trim(),
-      nombre:        _nombreCtrl.text.trim(),
-      correo:        _correoCtrl.text.trim(),
-      telefono:      _teleCtrl.text.trim(),
-      nombreUsuario: _usuarioCtrl.text.trim(),
-      contrasena:    _contraCtrl.text,
+      cedula:           _cedulaCtrl.text.trim(),
+      nombre:           _nombreCtrl.text.trim(),
+      correo:           _correoCtrl.text.trim(),
+      telefono:         _teleCtrl.text.trim(),
+      nombreUsuario:    _usuarioCtrl.text.trim(),
+      contrasena:       _contraCtrl.text,
+      empresaId:        modo == 'existente'
+          ? empresaSelec?.id : null,
+      empresaNombre:    modo == 'nueva'
+          ? _empresaNombreCtrl.text.trim()    : null,
+      empresaDireccion: modo == 'nueva'
+          ? _empresaDireccionCtrl.text.trim() : null,
+      empresaTelefono:  modo == 'nueva'
+          ? _empresaTelefonoCtrl.text.trim()  : null,
     );
   }
 
@@ -84,74 +128,84 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
     ));
   }
 
+  void _atras() {
+    if (_paso > 1) {
+      setState(() => _paso--);
+    } else {
+      context.go('/login');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(registroPublicoProvider);
 
-    ref.listen<RegistroPublicoState>(registroPublicoProvider,
-        (prev, next) {
-      if (next.exitoso) {
-        // Mostrar diálogo de éxito y volver al login
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('🎉',
-                    style: TextStyle(fontSize: 52)),
-                const SizedBox(height: 12),
-                const Text(
-                  '¡Registro exitoso!',
-                  style: TextStyle(
-                    fontSize:   18,
-                    fontWeight: FontWeight.bold,
-                    color:      AppColores.textPrimary,
+    ref.listen<RegistroPublicoState>(
+      registroPublicoProvider,
+      (prev, next) {
+        if (next.exitoso) {
+          showDialog(
+            context:            context,
+            barrierDismissible: false,
+            builder: (_) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('🎉',
+                      style: TextStyle(fontSize: 52)),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '¡Registro exitoso!',
+                    style: TextStyle(
+                      fontSize:   18,
+                      fontWeight: FontWeight.bold,
+                      color:      AppColores.textPrimary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Hola ${_nombreCtrl.text.trim().split(' ').first}, '
-                  'ya puedes iniciar sesión con tu usuario '
-                  '"${_usuarioCtrl.text.trim()}".',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color:   AppColores.textSecond,
-                    fontSize: 14,
+                  const SizedBox(height: 8),
+                  Text(
+                    'Hola '
+                    '${_nombreCtrl.text.trim().split(' ').first}'
+                    ', ya puedes iniciar sesión con tu usuario '
+                    '"${_usuarioCtrl.text.trim()}".',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color:    AppColores.textSecond,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      context.go('/login');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColores.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Ir al inicio de sesión'),
                   ),
                 ),
               ],
             ),
-            actions: [
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    context.go('/login');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColores.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: const Text('Ir al inicio de sesión'),
-                ),
-              ),
-            ],
-          ),
-        );
-      }
-      if (next.error != null) {
-        _error(next.error!);
-      }
-    });
+          );
+        }
+        if (next.error != null) {
+          _error(next.error!);
+        }
+      },
+    );
 
     return Scaffold(
       backgroundColor: AppColores.background,
@@ -159,7 +213,7 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
         child: Column(
           children: [
 
-            // ── Header ────────────────────────────────────
+            // ── Header ──────────────────────────────────
             Container(
               width:   double.infinity,
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
@@ -172,19 +226,12 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Botón atrás
                   GestureDetector(
-                    onTap: () {
-                      if (_paso == 2) {
-                        setState(() => _paso = 1);
-                      } else {
-                        context.go('/login');
-                      }
-                    },
+                    onTap: _atras,
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color:        Colors.white.withOpacity(0.15),
+                        color: Colors.white.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Icon(Icons.arrow_back,
@@ -192,13 +239,10 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-
                   const Text(
                     '🫓 EmpanaTrack',
                     style: TextStyle(
-                      color:      Colors.white70,
-                      fontSize:   14,
-                    ),
+                        color: Colors.white70, fontSize: 14),
                   ),
                   const SizedBox(height: 4),
                   const Text(
@@ -210,14 +254,12 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // Indicador de pasos
                   _IndicadorPasos(paso: _paso),
                 ],
               ),
             ),
 
-            // ── Formulario ────────────────────────────────
+            // ── Formulario ───────────────────────────────
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
@@ -231,24 +273,35 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
                           correoCtrl: _correoCtrl,
                           teleCtrl:   _teleCtrl,
                         )
-                      : _Paso2(
-                          key:         const ValueKey(2),
-                          usuarioCtrl: _usuarioCtrl,
-                          contraCtrl:  _contraCtrl,
-                          contra2Ctrl: _contra2Ctrl,
-                          verContra:   _verContra,
-                          verContra2:  _verContra2,
-                          nombre:      _nombreCtrl.text.trim(),
-                          onToggle1: () =>
-                              setState(() => _verContra = !_verContra),
-                          onToggle2: () =>
-                              setState(() => _verContra2 = !_verContra2),
-                        ),
+                      : _paso == 2
+                          ? _Paso2Empresa(
+                              key: const ValueKey(2),
+                              empresaNombreCtrl:
+                                  _empresaNombreCtrl,
+                              empresaDireccionCtrl:
+                                  _empresaDireccionCtrl,
+                              empresaTelefonoCtrl:
+                                  _empresaTelefonoCtrl,
+                            )
+                          : _Paso3Acceso(
+                              key:         const ValueKey(3),
+                              usuarioCtrl: _usuarioCtrl,
+                              contraCtrl:  _contraCtrl,
+                              contra2Ctrl: _contra2Ctrl,
+                              verContra:   _verContra,
+                              verContra2:  _verContra2,
+                              nombre: _nombreCtrl.text.trim(),
+                              onToggle1: () => setState(
+                                  () => _verContra = !_verContra),
+                              onToggle2: () => setState(
+                                  () =>
+                                      _verContra2 = !_verContra2),
+                            ),
                 ),
               ),
             ),
 
-            // ── Botón ─────────────────────────────────────
+            // ── Botón principal ──────────────────────────
             Padding(
               padding: EdgeInsets.fromLTRB(
                 24, 0, 24,
@@ -260,7 +313,7 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
                 child: ElevatedButton(
                   onPressed: state.cargando ? null : _siguiente,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _paso == 2
+                    backgroundColor: _paso == 3
                         ? AppColores.success
                         : AppColores.primary,
                     foregroundColor: Colors.white,
@@ -278,21 +331,22 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
                           ),
                         )
                       : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisAlignment:
+                              MainAxisAlignment.center,
                           children: [
                             Text(
-                              _paso == 1
-                                  ? 'Siguiente'
-                                  : 'Crear mi cuenta',
+                              _paso == 3
+                                  ? 'Crear mi cuenta'
+                                  : 'Siguiente',
                               style: const TextStyle(
                                 fontSize:   16,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Icon(_paso == 1
-                                ? Icons.arrow_forward
-                                : Icons.check_circle_outline),
+                            Icon(_paso == 3
+                                ? Icons.check_circle_outline
+                                : Icons.arrow_forward),
                           ],
                         ),
                 ),
@@ -305,7 +359,9 @@ class _RegistroScreenState extends ConsumerState<RegistroScreen> {
   }
 }
 
-// ── Indicador de pasos ─────────────────────────────────────
+// ══════════════════════════════════════════════════════════
+//  INDICADOR DE PASOS
+// ══════════════════════════════════════════════════════════
 class _IndicadorPasos extends StatelessWidget {
   final int paso;
   const _IndicadorPasos({required this.paso});
@@ -314,29 +370,42 @@ class _IndicadorPasos extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _Circulo(num: 1, activo: paso == 1, hecho: paso > 1),
+        _Circulo(
+            num: 1, activo: paso == 1,
+            hecho: paso > 1, label: 'Mis datos'),
         Expanded(
           child: Container(
             height: 2,
-            color:  paso > 1
-                ? Colors.white
-                : Colors.white30,
+            color:  paso > 1 ? Colors.white : Colors.white30,
           ),
         ),
-        _Circulo(num: 2, activo: paso == 2, hecho: false),
+        _Circulo(
+            num: 2, activo: paso == 2,
+            hecho: paso > 2, label: 'Empresa'),
+        Expanded(
+          child: Container(
+            height: 2,
+            color:  paso > 2 ? Colors.white : Colors.white30,
+          ),
+        ),
+        _Circulo(
+            num: 3, activo: paso == 3,
+            hecho: false, label: 'Acceso'),
       ],
     );
   }
 }
 
 class _Circulo extends StatelessWidget {
-  final int  num;
-  final bool activo;
-  final bool hecho;
+  final int    num;
+  final bool   activo;
+  final bool   hecho;
+  final String label;
   const _Circulo({
     required this.num,
     required this.activo,
     required this.hecho,
+    required this.label,
   });
 
   @override
@@ -347,7 +416,7 @@ class _Circulo extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           width: 32, height: 32,
           decoration: BoxDecoration(
-            color:        hecho
+            color: hecho
                 ? Colors.greenAccent
                 : activo
                     ? Colors.white
@@ -356,8 +425,8 @@ class _Circulo extends StatelessWidget {
           ),
           child: Center(
             child: hecho
-                ? const Icon(Icons.check, size: 16,
-                    color: AppColores.primary)
+                ? const Icon(Icons.check,
+                    size: 16, color: AppColores.primary)
                 : Text(
                     '$num',
                     style: TextStyle(
@@ -372,7 +441,7 @@ class _Circulo extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          num == 1 ? 'Tus datos' : 'Acceso',
+          label,
           style: TextStyle(
             color:      activo ? Colors.white : Colors.white54,
             fontSize:   10,
@@ -386,7 +455,9 @@ class _Circulo extends StatelessWidget {
   }
 }
 
-// ── PASO 1: Datos personales ───────────────────────────────
+// ══════════════════════════════════════════════════════════
+//  PASO 1 — Datos personales
+// ══════════════════════════════════════════════════════════
 class _Paso1 extends StatelessWidget {
   final TextEditingController cedulaCtrl;
   final TextEditingController nombreCtrl;
@@ -438,41 +509,330 @@ class _Paso1 extends StatelessWidget {
           teclado: TextInputType.emailAddress,
         ),
         const SizedBox(height: 24),
-        // Info
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color:        AppColores.accent.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppColores.accent.withOpacity(0.2),
-            ),
-          ),
-          child: const Row(
-            children: [
-              Icon(Icons.info_outline,
-                  color: AppColores.accent, size: 18),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Tu cédula nos permite identificarte y '
-                  'vincular tus compras.',
-                  style: TextStyle(
-                    color:   AppColores.accent,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
+        const _InfoBox(
+          icono: Icons.info_outline,
+          color: AppColores.accent,
+          texto: 'Tu cédula nos permite identificarte '
+              'y vincular tus compras.',
         ),
       ],
     );
   }
 }
 
-// ── PASO 2: Credenciales ───────────────────────────────────
-class _Paso2 extends StatelessWidget {
+// ══════════════════════════════════════════════════════════
+//  PASO 2 — Empresa
+// ══════════════════════════════════════════════════════════
+class _Paso2Empresa extends ConsumerStatefulWidget {
+  final TextEditingController empresaNombreCtrl;
+  final TextEditingController empresaDireccionCtrl;
+  final TextEditingController empresaTelefonoCtrl;
+  const _Paso2Empresa({
+    super.key,
+    required this.empresaNombreCtrl,
+    required this.empresaDireccionCtrl,
+    required this.empresaTelefonoCtrl,
+  });
+
+  @override
+  ConsumerState<_Paso2Empresa> createState() =>
+      _Paso2EmpresaState();
+}
+
+class _Paso2EmpresaState extends ConsumerState<_Paso2Empresa> {
+  final _busquedaCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _busquedaCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final modo         = ref.watch(_modoEmpresaProvider);
+    final empresaSelec = ref.watch(_empresaSelecProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+
+        const _SecTitulo(
+          icono:  '🏢',
+          titulo: 'Tu empresa',
+          sub:    'Opcional — puedes omitir este paso',
+        ),
+        const SizedBox(height: 24),
+
+        // ── Opciones de modo ─────────────────────────
+        _OpcionEmpresa(
+          valor:     'ninguna',
+          actual:    modo,
+          titulo:    'No pertenezco a ninguna empresa',
+          subtitulo: 'Me registro como cliente individual',
+          icono:     Icons.person_outline,
+          onChange: (v) {
+            ref.read(_modoEmpresaProvider.notifier).state = v;
+            ref.read(_empresaSelecProvider.notifier).state = null;
+          },
+        ),
+        const SizedBox(height: 10),
+
+        _OpcionEmpresa(
+          valor:     'existente',
+          actual:    modo,
+          titulo:    'Mi empresa ya está registrada',
+          subtitulo: 'Busca y selecciona tu empresa',
+          icono:     Icons.search,
+          onChange: (v) =>
+              ref.read(_modoEmpresaProvider.notifier).state = v,
+        ),
+        const SizedBox(height: 10),
+
+        _OpcionEmpresa(
+          valor:     'nueva',
+          actual:    modo,
+          titulo:    'Registrar nueva empresa',
+          subtitulo: 'Mi empresa aún no está en el sistema',
+          icono:     Icons.add_business_outlined,
+          onChange: (v) {
+            ref.read(_modoEmpresaProvider.notifier).state = v;
+            ref.read(_empresaSelecProvider.notifier).state = null;
+          },
+        ),
+
+        const SizedBox(height: 24),
+
+        // ── Contenido según modo ─────────────────────
+
+        // MODO: Buscar empresa existente
+        if (modo == 'existente') ...[
+          TextField(
+            controller: _busquedaCtrl,
+            decoration: InputDecoration(
+              labelText:  'Buscar empresa',
+              hintText:   'Escribe el nombre...',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              filled:    true,
+              fillColor: Colors.white,
+              suffixIcon: _busquedaCtrl.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _busquedaCtrl.clear();
+                        ref
+                            .read(_busquedaEmpresaProvider
+                                .notifier)
+                            .state = '';
+                      },
+                    )
+                  : null,
+            ),
+            onChanged: (v) => ref
+                .read(_busquedaEmpresaProvider.notifier)
+                .state = v,
+          ),
+          const SizedBox(height: 12),
+
+          // Empresa seleccionada
+          if (empresaSelec != null) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColores.success.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColores.success.withOpacity(0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle,
+                      color: AppColores.success),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      empresaSelec.nombre,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color:      AppColores.textPrimary,
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => ref
+                        .read(_empresaSelecProvider.notifier)
+                        .state = null,
+                    child: const Icon(Icons.close,
+                        color: AppColores.textSecond,
+                        size:  18),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          // Lista de resultados
+          _ListaEmpresas(
+            onSeleccionar: (empresa) {
+              ref
+                  .read(_empresaSelecProvider.notifier)
+                  .state = empresa;
+              _busquedaCtrl.clear();
+              ref
+                  .read(_busquedaEmpresaProvider.notifier)
+                  .state = '';
+            },
+          ),
+        ],
+
+        // MODO: Empresa nueva
+        if (modo == 'nueva') ...[
+          _Campo(
+            ctrl:  widget.empresaNombreCtrl,
+            label: 'Nombre de la empresa *',
+            icono: Icons.business_outlined,
+          ),
+          const SizedBox(height: 14),
+          _Campo(
+            ctrl:  widget.empresaDireccionCtrl,
+            label: 'Dirección',
+            icono: Icons.location_on_outlined,
+          ),
+          const SizedBox(height: 14),
+          _Campo(
+            ctrl:    widget.empresaTelefonoCtrl,
+            label:   'Teléfono de la empresa',
+            icono:   Icons.phone_outlined,
+            teclado: TextInputType.phone,
+          ),
+          const SizedBox(height: 12),
+          const _InfoBox(
+            icono: Icons.info_outline,
+            color: AppColores.accent,
+            texto: 'Si ya existe una empresa con ese nombre, '
+                'se vinculará automáticamente sin crear duplicados.',
+          ),
+        ],
+
+        // MODO: Sin empresa
+        if (modo == 'ninguna') ...[
+          const _InfoBox(
+            icono: Icons.check_circle_outline,
+            color: AppColores.success,
+            texto: 'Te registrarás como cliente individual. '
+                'Puedes asociarte a una empresa más adelante.',
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// Lista de empresas con búsqueda
+class _ListaEmpresas extends ConsumerWidget {
+  final Function(EmpresaOpcion) onSeleccionar;
+  const _ListaEmpresas({required this.onSeleccionar});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final busqueda = ref.watch(_busquedaEmpresaProvider);
+    final async    = ref.watch(
+        empresasPublicasProvider(busqueda));
+
+    return async.when(
+      loading: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child:   CircularProgressIndicator(),
+        ),
+      ),
+      error: (e, _) => const Padding(
+        padding: EdgeInsets.all(8),
+        child: Text(
+          'Error cargando empresas',
+          style: TextStyle(color: AppColores.danger),
+        ),
+      ),
+      data: (empresas) => empresas.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                busqueda.isEmpty
+                    ? 'Escribe para buscar empresas'
+                    : 'No se encontró "$busqueda"',
+                style: const TextStyle(
+                    color: AppColores.textSecond),
+              ),
+            )
+          : Container(
+              decoration: BoxDecoration(
+                color:        Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: Colors.grey.shade200),
+              ),
+              child: Column(
+                children: empresas
+                    .take(5)
+                    .map((e) => _EmpresaItem(
+                          empresa:       e,
+                          onSeleccionar: onSeleccionar,
+                        ))
+                    .toList(),
+              ),
+            ),
+    );
+  }
+}
+
+class _EmpresaItem extends StatelessWidget {
+  final EmpresaOpcion           empresa;
+  final Function(EmpresaOpcion) onSeleccionar;
+  const _EmpresaItem({
+    required this.empresa,
+    required this.onSeleccionar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => onSeleccionar(empresa),
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            const Icon(Icons.business_outlined,
+                color: AppColores.primary, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                empresa.nombre,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color:    AppColores.textPrimary,
+                ),
+              ),
+            ),
+            const Icon(Icons.chevron_right,
+                color: AppColores.textSecond, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  PASO 3 — Acceso
+// ══════════════════════════════════════════════════════════
+class _Paso3Acceso extends StatelessWidget {
   final TextEditingController usuarioCtrl;
   final TextEditingController contraCtrl;
   final TextEditingController contra2Ctrl;
@@ -481,8 +841,7 @@ class _Paso2 extends StatelessWidget {
   final String                nombre;
   final VoidCallback          onToggle1;
   final VoidCallback          onToggle2;
-
-  const _Paso2({
+  const _Paso3Acceso({
     super.key,
     required this.usuarioCtrl,
     required this.contraCtrl,
@@ -496,11 +855,10 @@ class _Paso2 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Sugerir usuario basado en el nombre
     if (usuarioCtrl.text.isEmpty && nombre.isNotEmpty) {
-      usuarioCtrl.text = nombre.split(' ').first.toLowerCase();
+      usuarioCtrl.text =
+          nombre.split(' ').first.toLowerCase();
     }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -511,7 +869,6 @@ class _Paso2 extends StatelessWidget {
         ),
         const SizedBox(height: 24),
 
-        // Usuario
         _Campo(
           ctrl:  usuarioCtrl,
           label: 'Nombre de usuario *',
@@ -564,40 +921,112 @@ class _Paso2 extends StatelessWidget {
         ),
         const SizedBox(height: 24),
 
-        // Tip seguridad
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color:        AppColores.success.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppColores.success.withOpacity(0.2),
-            ),
-          ),
-          child: const Row(
-            children: [
-              Icon(Icons.security_outlined,
-                  color: AppColores.success, size: 18),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Usa una contraseña segura que no compartas '
-                  'con nadie.',
-                  style: TextStyle(
-                    color:    AppColores.success,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
+        const _InfoBox(
+          icono: Icons.security_outlined,
+          color: AppColores.success,
+          texto: 'Usa una contraseña segura que no '
+              'compartas con nadie.',
         ),
       ],
     );
   }
 }
 
-// ── Widgets reutilizables ──────────────────────────────────
+// ══════════════════════════════════════════════════════════
+//  OPCIÓN DE EMPRESA (radio visual)
+// ══════════════════════════════════════════════════════════
+class _OpcionEmpresa extends StatelessWidget {
+  final String           valor;
+  final String           actual;
+  final String           titulo;
+  final String           subtitulo;
+  final IconData         icono;
+  final Function(String) onChange;
+  const _OpcionEmpresa({
+    required this.valor,
+    required this.actual,
+    required this.titulo,
+    required this.subtitulo,
+    required this.icono,
+    required this.onChange,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final seleccionado = valor == actual;
+    return GestureDetector(
+      onTap: () => onChange(valor),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding:  const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: seleccionado
+              ? AppColores.primary.withOpacity(0.06)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: seleccionado
+                ? AppColores.primary
+                : Colors.grey.shade200,
+            width: seleccionado ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: seleccionado
+                    ? AppColores.primary.withOpacity(0.12)
+                    : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icono,
+                color: seleccionado
+                    ? AppColores.primary
+                    : AppColores.textSecond,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    titulo,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize:   14,
+                      color: seleccionado
+                          ? AppColores.primary
+                          : AppColores.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    subtitulo,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color:    AppColores.textSecond,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (seleccionado)
+              const Icon(Icons.check_circle,
+                  color: AppColores.primary, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  WIDGETS REUTILIZABLES
+// ══════════════════════════════════════════════════════════
 class _SecTitulo extends StatelessWidget {
   final String icono;
   final String titulo;
@@ -617,17 +1046,21 @@ class _SecTitulo extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(titulo,
-                style: const TextStyle(
-                  fontSize:   18,
-                  fontWeight: FontWeight.bold,
-                  color:      AppColores.textPrimary,
-                )),
-            Text(sub,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color:    AppColores.textSecond,
-                )),
+            Text(
+              titulo,
+              style: const TextStyle(
+                fontSize:   18,
+                fontWeight: FontWeight.bold,
+                color:      AppColores.textPrimary,
+              ),
+            ),
+            Text(
+              sub,
+              style: const TextStyle(
+                fontSize: 12,
+                color:    AppColores.textSecond,
+              ),
+            ),
           ],
         ),
       ],
@@ -660,6 +1093,41 @@ class _Campo extends StatelessWidget {
         ),
         filled:    true,
         fillColor: Colors.white,
+      ),
+    );
+  }
+}
+
+class _InfoBox extends StatelessWidget {
+  final IconData icono;
+  final Color    color;
+  final String   texto;
+  const _InfoBox({
+    required this.icono,
+    required this.color,
+    required this.texto,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color:        color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(icono, color: color, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              texto,
+              style: TextStyle(color: color, fontSize: 12),
+            ),
+          ),
+        ],
       ),
     );
   }
