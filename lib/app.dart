@@ -17,6 +17,7 @@ import 'features/clientes/screens/clientes_screen.dart';
 import 'features/clientes/screens/mi_cuenta_screen.dart';
 import 'features/clientes/screens/registrar_pago_screen.dart';
 import 'features/ventas/screens/vendedor_shell.dart';
+import 'features/clientes/screens/cliente_shell.dart';
 
 
 class EmpanaTrackApp extends ConsumerWidget {
@@ -77,7 +78,7 @@ class EmpanaTrackApp extends ConsumerWidget {
         ),
         GoRoute(
           path:    '/mi-cuenta',
-          builder: (ctx, state) => const MiCuentaScreen(),
+          builder: (ctx, state) => const ClienteShell(),  // ← era MiCuentaScreen()
         ),
         GoRoute(
           path:    '/registrar-pago/:clienteId',

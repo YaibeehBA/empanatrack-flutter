@@ -1,4 +1,3 @@
-// lib/features/ventas/screens/dashboard_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -34,11 +33,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Refrescar cuando se vuelve al tab 0
     ref.listen<int>(tabActivoProvider, (prev, next) {
-      if (next == 0 && prev != 0) {
-        _refrescar();
-      }
+      if (next == 0 && prev != 0) _refrescar();
     });
 
     final sesion  = ref.watch(authProvider).sesion;
@@ -70,8 +66,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ),
         actions: [
           IconButton(
-            icon:      const Icon(Icons.logout),
-            tooltip:   'Cerrar sesión',
+            icon:    const Icon(Icons.logout),
+            tooltip: 'Cerrar sesión',
             onPressed: () async {
               await ref.read(authProvider.notifier).logout();
               if (context.mounted) context.go('/login');
@@ -80,9 +76,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          _refrescar();
-        },
+        onRefresh: () async => _refrescar(),
         child: CustomScrollView(
           slivers: [
 
@@ -106,7 +100,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
             ),
 
-            // ── Título últimas ventas ────────────────────
+            // ── Título historial ─────────────────────────
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -143,13 +137,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
             ),
 
-            // ── Lista resumida (máx 5 ventas) ────────────
+            // ── Lista resumida (máx 5) ───────────────────
             _SliverListaVentasResumida(periodo: periodo),
 
-            // Espacio para el FAB
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 100),
-            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],
         ),
       ),
@@ -157,12 +148,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   String _fechaHoy() {
-    final now    = DateTime.now();
-    const meses  = ['','Ene','Feb','Mar','Abr','May','Jun',
-                    'Jul','Ago','Sep','Oct','Nov','Dic'];
-    const dias   = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-    return '${dias[now.weekday % 7]} ${now.day} '
-        '${meses[now.month]} ${now.year}';
+    final now   = DateTime.now();
+    const meses = ['','Ene','Feb','Mar','Abr','May','Jun',
+                   'Jul','Ago','Sep','Oct','Nov','Dic'];
+    const dias  = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+    return '${dias[now.weekday % 7]} ${now.day} ${meses[now.month]} ${now.year}';
   }
 
   static String _labelHistorial(String p) {
@@ -182,7 +172,8 @@ class _SelectorPeriodo extends StatelessWidget {
   final String           seleccionado;
   final Function(String) onChange;
   const _SelectorPeriodo({
-    required this.seleccionado, required this.onChange,
+    required this.seleccionado,
+    required this.onChange,
   });
 
   @override
@@ -216,7 +207,7 @@ class _SelectorPeriodo extends StatelessWidget {
                 duration: const Duration(milliseconds: 200),
                 padding:  const EdgeInsets.symmetric(vertical: 9),
                 decoration: BoxDecoration(
-                  color:        activo
+                  color: activo
                       ? AppColores.primary
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(9),
@@ -255,19 +246,29 @@ class _BloqueResumen extends ConsumerWidget {
     return async.when(
       loading: () => const _ResumenSkeleton(),
       error:   (e, _) => const SizedBox.shrink(),
-      data: (r) => Column(
+      data:    (r) => Column(
         children: [
 
-          // Fila 1: Contado | Fiado
+          // ── Card principal: Dinero en mano ─────────────
+          _DineroEnManoCard(
+            dineroEnMano: r.dineroEnMano,
+            totalContado: r.totalContado,
+            totalCobrado: r.totalCobrado,
+            totalVentas:  r.totalVentas,
+          ),
+
+          const SizedBox(height: 12),
+
+          // ── Fila inferior: Total vendido | Por cobrar ──
           Row(
             children: [
               Expanded(
                 child: _StatCard(
-                  color:     AppColores.success,
-                  icono:     '💵',
-                  etiqueta:  'Al contado',
-                  valor:     '\$${r.totalContado.toStringAsFixed(2)}',
-                  subtitulo: 'Cobrado al momento',
+                  color:     AppColores.primary,
+                  icono:     '📦',
+                  etiqueta:  'Total vendido',
+                  valor:     '\$${r.totalVendido.toStringAsFixed(2)}',
+                  subtitulo: 'Contado + fiado',
                 ),
               ),
               const SizedBox(width: 12),
@@ -275,22 +276,12 @@ class _BloqueResumen extends ConsumerWidget {
                 child: _StatCard(
                   color:     AppColores.warning,
                   icono:     '📋',
-                  etiqueta:  'Fiado',
+                  etiqueta:  'Por cobrar',
                   valor:     '\$${r.totalFiado.toStringAsFixed(2)}',
-                  subtitulo: 'Pendiente de cobro',
+                  subtitulo: 'Fiado pendiente',
                 ),
               ),
             ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // Card total vendido
-          _TotalVendidoCard(
-            totalVendido: r.totalVendido,
-            totalContado: r.totalContado,
-            totalFiado:   r.totalFiado,
-            totalVentas:  r.totalVentas,
           ),
         ],
       ),
@@ -299,7 +290,201 @@ class _BloqueResumen extends ConsumerWidget {
 }
 
 // ══════════════════════════════════════════════════════════
-//  STAT CARD
+//  CARD PRINCIPAL — Dinero en mano
+// ══════════════════════════════════════════════════════════
+class _DineroEnManoCard extends StatelessWidget {
+  final double dineroEnMano;
+  final double totalContado;
+  final double totalCobrado;
+  final int    totalVentas;
+
+  const _DineroEnManoCard({
+    required this.dineroEnMano,
+    required this.totalContado,
+    required this.totalCobrado,
+    required this.totalVentas,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width:   double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color:        Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color:      Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset:     const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+
+          // ── Encabezado ───────────────────────────────
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color:        AppColores.primary.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text('💰',
+                    style: TextStyle(fontSize: 20)),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'DINERO EN MANO',
+                      style: TextStyle(
+                        color:         AppColores.textSecond,
+                        fontSize:      11,
+                        letterSpacing: 1.2,
+                        fontWeight:    FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'Ventas contado + cobros recibidos',
+                      style: TextStyle(
+                        color:    AppColores.textSecond,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Badge número de ventas
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color:        AppColores.primary.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '$totalVentas '
+                  '${totalVentas == 1 ? "venta" : "ventas"}',
+                  style: const TextStyle(
+                    color:      AppColores.primary,
+                    fontSize:   11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Monto grande ─────────────────────────────
+          Text(
+            '\$${dineroEnMano.toStringAsFixed(2)}',
+            style: const TextStyle(
+              color:      AppColores.primary,
+              fontSize:   42,
+              fontWeight: FontWeight.bold,
+              height:     1.0,
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Divisor ──────────────────────────────────
+          Divider(
+            color:  Colors.grey.withOpacity(0.20),
+            height: 1,
+          ),
+          const SizedBox(height: 14),
+
+          // ── Desglose: contado | cobros ────────────────
+          Row(
+            children: [
+              Expanded(
+                child: _DesglosItem(
+                  icono:      '💵',
+                  etiqueta:   'Ventas contado',
+                  valor:      '\$${totalContado.toStringAsFixed(2)}',
+                  colorValor: AppColores.success,
+                ),
+              ),
+              Container(
+                width: 1, height: 36,
+                color: Colors.grey.withOpacity(0.20),
+              ),
+              Expanded(
+                child: _DesglosItem(
+                  icono:      '🤝',
+                  etiqueta:   'Cobros recibidos',
+                  valor:      '\$${totalCobrado.toStringAsFixed(2)}',
+                  colorValor: AppColores.accent,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DesglosItem extends StatelessWidget {
+  final String icono;
+  final String etiqueta;
+  final String valor;
+  final Color  colorValor;
+
+  const _DesglosItem({
+    required this.icono,
+    required this.etiqueta,
+    required this.valor,
+    required this.colorValor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(icono, style: const TextStyle(fontSize: 13)),
+              const SizedBox(width: 4),
+              Text(
+                etiqueta,
+                style: const TextStyle(
+                  color:    AppColores.textSecond,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            valor,
+            style: TextStyle(
+              color:      colorValor,
+              fontSize:   18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  STAT CARD — Total vendido y Por cobrar
 // ══════════════════════════════════════════════════════════
 class _StatCard extends StatelessWidget {
   final Color  color;
@@ -337,12 +522,14 @@ class _StatCard extends StatelessWidget {
             children: [
               Text(icono, style: const TextStyle(fontSize: 18)),
               const SizedBox(width: 6),
-              Text(
-                etiqueta,
-                style: const TextStyle(
-                  fontSize:   12,
-                  color:      AppColores.textSecond,
-                  fontWeight: FontWeight.w500,
+              Expanded(
+                child: Text(
+                  etiqueta,
+                  style: const TextStyle(
+                    fontSize:   12,
+                    color:      AppColores.textSecond,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
@@ -371,196 +558,6 @@ class _StatCard extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════
-//  TOTAL VENDIDO CARD
-// ══════════════════════════════════════════════════════════
-class _TotalVendidoCard extends StatelessWidget {
-  final double totalVendido;
-  final double totalContado;
-  final double totalFiado;
-  final int    totalVentas;
-  const _TotalVendidoCard({
-    required this.totalVendido,
-    required this.totalContado,
-    required this.totalFiado,
-    required this.totalVentas,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final porcentajeContado = totalVendido > 0
-        ? (totalContado / totalVendido).clamp(0.0, 1.0)
-        : 0.0;
-
-    return Container(
-      width:   double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color:        Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color:      Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset:     const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-
-          // Encabezado
-          Row(
-            children: [
-              const Text(
-                'TOTAL VENDIDO',
-                style: TextStyle(
-                  color:         AppColores.textSecond,
-                  fontSize:      11,
-                  letterSpacing: 1.2,
-                  fontWeight:    FontWeight.bold,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color:        AppColores.primary.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '$totalVentas '
-                  '${totalVentas == 1 ? "venta" : "ventas"}',
-                  style: const TextStyle(
-                    color:      AppColores.primary,
-                    fontSize:   11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 6),
-
-          // Monto grande
-          Text(
-            '\$${totalVendido.toStringAsFixed(2)}',
-            style: const TextStyle(
-              color:      AppColores.primary,
-              fontSize:   34,
-              fontWeight: FontWeight.bold,
-              height:     1.1,
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Barra y leyenda
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Contado vs Fiado',
-                    style: TextStyle(
-                      color:    AppColores.textSecond,
-                      fontSize: 11,
-                    ),
-                  ),
-                  Text(
-                    '${(porcentajeContado * 100).toStringAsFixed(0)}% contado',
-                    style: const TextStyle(
-                      color:    AppColores.textSecond,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-
-              // Barra de progreso
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: Stack(
-                  children: [
-                    Container(
-                      height: 10,
-                      color:  AppColores.warning.withOpacity(0.25),
-                    ),
-                    FractionallySizedBox(
-                      widthFactor: porcentajeContado,
-                      child: Container(
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color:        AppColores.success,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              // Leyenda
-              Row(
-                children: [
-                  _PillLeyenda(
-                    color: AppColores.success,
-                    texto: 'Contado '
-                        '\$${totalContado.toStringAsFixed(2)}',
-                  ),
-                  const SizedBox(width: 16),
-                  _PillLeyenda(
-                    color: AppColores.warning,
-                    texto: 'Fiado '
-                        '\$${totalFiado.toStringAsFixed(2)}',
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PillLeyenda extends StatelessWidget {
-  final Color  color;
-  final String texto;
-  const _PillLeyenda({required this.color, required this.texto});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 10, height: 10,
-          decoration: BoxDecoration(
-            color:        color,
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          texto,
-          style: const TextStyle(
-            color:    AppColores.textSecond,
-            fontSize: 12,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════
 //  SKELETON
 // ══════════════════════════════════════════════════════════
 class _ResumenSkeleton extends StatelessWidget {
@@ -570,6 +567,8 @@ class _ResumenSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        _SkeletonBox(height: 180),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(child: _SkeletonBox(height: 90)),
@@ -577,8 +576,6 @@ class _ResumenSkeleton extends StatelessWidget {
             Expanded(child: _SkeletonBox(height: 90)),
           ],
         ),
-        const SizedBox(height: 12),
-        _SkeletonBox(height: 160),
       ],
     );
   }
@@ -591,7 +588,7 @@ class _SkeletonBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height:     height,
+      height: height,
       decoration: BoxDecoration(
         color:        Colors.grey.shade200,
         borderRadius: BorderRadius.circular(16),
@@ -601,7 +598,7 @@ class _SkeletonBox extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════
-//  LISTA RESUMIDA (máx 5)
+//  LISTA RESUMIDA (máx 5 ventas)
 // ══════════════════════════════════════════════════════════
 class _SliverListaVentasResumida extends ConsumerWidget {
   final String periodo;
@@ -623,9 +620,7 @@ class _SliverListaVentasResumida extends ConsumerWidget {
         child: SizedBox.shrink(),
       ),
       data: (ventas) => ventas.isEmpty
-          ? SliverToBoxAdapter(
-              child: _EmptyVentas(periodo: periodo),
-            )
+          ? SliverToBoxAdapter(child: _EmptyVentas(periodo: periodo))
           : SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               sliver: SliverList(
