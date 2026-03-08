@@ -1,24 +1,22 @@
+// lib/features/cliente/screens/mi_cuenta_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/colores.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/services/notificaciones_service.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/historial_provider.dart';
 import '../../../shared/models/movimiento_model.dart';
 
-// Provider del saldo del cliente logueado
-final miSaldoProvider = FutureProvider<double>((ref) async {
-  final authState = ref.watch(authProvider);
-  final clienteId = authState.sesion != null
-      ? await _obtenerClienteId()
-      : null;
+// ── Providers del cliente ──────────────────────────────────
+final miSaldoProvider = FutureProvider.autoDispose<double>((ref) async {
+  final clienteId = await _obtenerClienteId();
   if (clienteId == null) return 0.0;
   final response = await ApiClient.get('/clientes/$clienteId/saldo');
   return (response.data['saldo_actual'] as num).toDouble();
 });
 
-// Helper para obtener el cliente_id del usuario logueado
 Future<String?> _obtenerClienteId() async {
   try {
     final response = await ApiClient.get('/clientes/mi-perfil');
@@ -28,11 +26,30 @@ Future<String?> _obtenerClienteId() async {
   }
 }
 
-class MiCuentaScreen extends ConsumerWidget {
+// ══════════════════════════════════════════════════════════
+//  PANTALLA PRINCIPAL — ConsumerStatefulWidget para poder
+//  registrar providers en initState
+// ══════════════════════════════════════════════════════════
+class MiCuentaScreen extends ConsumerStatefulWidget {
   const MiCuentaScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MiCuentaScreen> createState() => _MiCuentaScreenState();
+}
+
+class _MiCuentaScreenState extends ConsumerState<MiCuentaScreen> {
+
+  @override
+  void initState() {
+    super.initState();
+    // Registrar miSaldoProvider para que FCM lo refresque
+    // automáticamente cuando llegue una notificación de venta
+    registrarProviderParaRefrescar(miSaldoProvider);
+    print('✅ [MiCuenta] miSaldoProvider registrado para FCM');
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final sesion = ref.watch(authProvider).sesion;
 
     return Scaffold(
@@ -40,12 +57,14 @@ class MiCuentaScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: AppColores.primary,
         foregroundColor: Colors.white,
-        title:           const Text('Mi Cuenta',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Mi Cuenta',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         actions: [
           IconButton(
-            icon:      const Icon(Icons.logout),
-            tooltip:   'Cerrar sesión',
+            icon:    const Icon(Icons.logout),
+            tooltip: 'Cerrar sesión',
             onPressed: () async {
               await ref.read(authProvider.notifier).logout();
               if (context.mounted) context.go('/login');
@@ -58,59 +77,82 @@ class MiCuentaScreen extends ConsumerWidget {
   }
 }
 
-class _MiCuentaBody extends ConsumerWidget {
+// ══════════════════════════════════════════════════════════
+//  BODY — ConsumerStatefulWidget para registrar
+//  historialProvider una vez que tengamos el clienteId
+// ══════════════════════════════════════════════════════════
+class _MiCuentaBody extends ConsumerStatefulWidget {
   final String nombreCliente;
   const _MiCuentaBody({required this.nombreCliente});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return FutureBuilder<String?>(
-      future: _obtenerClienteId(),
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final clienteId = snap.data;
-        if (clienteId == null) {
-          return const Center(
-            child: Text('No se pudo cargar tu información.'),
-          );
-        }
-        return _ContenidoCuenta(
-          clienteId:     clienteId,
-          nombreCliente: nombreCliente,
-          ref:           ref,
-        );
-      },
+  ConsumerState<_MiCuentaBody> createState() => _MiCuentaBodyState();
+}
+
+class _MiCuentaBodyState extends ConsumerState<_MiCuentaBody> {
+
+  String? _clienteId;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarClienteId();
+  }
+
+  Future<void> _cargarClienteId() async {
+    final id = await _obtenerClienteId();
+    if (id != null && mounted) {
+      setState(() => _clienteId = id);
+
+      // Ahora que tenemos el clienteId, registramos historialProvider
+      // para que FCM también lo refresque automáticamente
+      registrarProviderParaRefrescar(historialProvider(id));
+      print('✅ [MiCuenta] historialProvider($id) registrado para FCM');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Mientras carga el clienteId mostramos spinner
+    if (_clienteId == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return _ContenidoCuenta(
+      clienteId:     _clienteId!,
+      nombreCliente: widget.nombreCliente,
     );
   }
 }
 
-class _ContenidoCuenta extends StatelessWidget {
-  final String    clienteId;
-  final String    nombreCliente;
-  final WidgetRef ref;
+// ══════════════════════════════════════════════════════════
+//  CONTENIDO — ya no recibe ref como parámetro,
+//  usa ConsumerWidget directamente
+// ══════════════════════════════════════════════════════════
+class _ContenidoCuenta extends ConsumerWidget {
+  final String clienteId;
+  final String nombreCliente;
 
   const _ContenidoCuenta({
     required this.clienteId,
     required this.nombreCliente,
-    required this.ref,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final saldoAsync    = ref.watch(miSaldoProvider);
     final historialAsync = ref.watch(historialProvider(clienteId));
 
     return RefreshIndicator(
       onRefresh: () async {
+        // Refresco manual con pull-to-refresh
         ref.invalidate(miSaldoProvider);
         ref.invalidate(historialProvider(clienteId));
       },
       child: ListView(
         children: [
 
-          // ── Header con saldo ───────────────────────────
+          // ── Header con saldo ─────────────────────────
           Container(
             width:   double.infinity,
             padding: const EdgeInsets.symmetric(
@@ -166,14 +208,14 @@ class _ContenidoCuenta extends StatelessWidget {
                       saldoAsync.when(
                         loading: () => const CircularProgressIndicator(
                             color: Colors.white),
-                        error:   (e, _) => const Text(
-                          'Error',
+                        error: (e, _) => const Text(
+                          'Error al cargar',
                           style: TextStyle(color: Colors.white),
                         ),
                         data: (saldo) => Text(
                           '\$${saldo.toStringAsFixed(2)}',
                           style: TextStyle(
-                            color:      saldo > 0
+                            color: saldo > 0
                                 ? Colors.orangeAccent
                                 : Colors.greenAccent,
                             fontSize:   40,
@@ -201,10 +243,10 @@ class _ContenidoCuenta extends StatelessWidget {
             ),
           ),
 
-          // ── Historial de movimientos ───────────────────
+          // ── Historial ─────────────────────────────────
           const Padding(
             padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
-            child:   Text(
+            child: Text(
               'HISTORIAL DE MOVIMIENTOS',
               style: TextStyle(
                 fontSize:      12,
@@ -231,7 +273,7 @@ class _ContenidoCuenta extends StatelessWidget {
             data: (movimientos) => movimientos.isEmpty
                 ? const Padding(
                     padding: EdgeInsets.all(32),
-                    child:   Center(
+                    child: Center(
                       child: Text(
                         'Aún no tienes movimientos registrados.',
                         style: TextStyle(color: AppColores.textSecond),
@@ -254,21 +296,21 @@ class _ContenidoCuenta extends StatelessWidget {
   }
 }
 
-// ── Item de cada movimiento ────────────────────────────────
+// ══════════════════════════════════════════════════════════
+//  ITEM DE MOVIMIENTO — sin cambios
+// ══════════════════════════════════════════════════════════
 class _MovimientoItem extends StatelessWidget {
   final MovimientoModel movimiento;
   const _MovimientoItem({required this.movimiento});
 
   @override
   Widget build(BuildContext context) {
-    final esVenta  = movimiento.esVenta;
-    final color    = esVenta ? AppColores.danger  : AppColores.success;
-    final icono    = esVenta ? '🧾'               : '💸';
-    final signo    = esVenta ? '+'                : '-';
-    final monto    = movimiento.monto.abs();
-
-    // Formatear fecha legible
-    final fecha = _formatearFecha(movimiento.fecha);
+    final esVenta = movimiento.esVenta;
+    final color   = esVenta ? AppColores.danger  : AppColores.success;
+    final icono   = esVenta ? '🧾'               : '💸';
+    final signo   = esVenta ? '+'                : '-';
+    final monto   = movimiento.monto.abs();
+    final fecha   = _formatearFecha(movimiento.fecha);
 
     return Container(
       margin:  const EdgeInsets.only(bottom: 10),
@@ -286,7 +328,6 @@ class _MovimientoItem extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Ícono
           Container(
             width: 44, height: 44,
             decoration: BoxDecoration(
@@ -294,12 +335,11 @@ class _MovimientoItem extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
-              child: Text(icono, style: const TextStyle(fontSize: 22)),
+              child: Text(icono,
+                  style: const TextStyle(fontSize: 22)),
             ),
           ),
           const SizedBox(width: 12),
-
-          // Info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -327,8 +367,6 @@ class _MovimientoItem extends StatelessWidget {
               ],
             ),
           ),
-
-          // Monto
           Text(
             '$signo\$${monto.toStringAsFixed(2)}',
             style: TextStyle(

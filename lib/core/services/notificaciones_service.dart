@@ -2,144 +2,222 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../network/api_client.dart';
+
+// ── Provider global para poder invalidar desde cualquier lugar ──
+// Se asigna en main.dart después de crear el ProviderContainer
+ProviderContainer? _globalContainer;
+
+void setGlobalContainer(ProviderContainer container) {
+  _globalContainer = container;
+}
+
+// ── Lista de providers que se deben refrescar al recibir notif ──
+// Agrégalos desde tu código cuando los tengas listos
+final _providersParaRefrescar = <ProviderOrFamily>[];
+
+void registrarProviderParaRefrescar(ProviderOrFamily provider) {
+  _providersParaRefrescar.add(provider);
+}
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
+  print('🔔 [FCM] Mensaje en BACKGROUND: ${message.notification?.title}');
 }
 
 class NotificacionesService {
   static final FlutterLocalNotificationsPlugin _local =
       FlutterLocalNotificationsPlugin();
 
+  // ══════════════════════════════════════════════
+  //  INICIALIZAR
+  // ══════════════════════════════════════════════
   static Future<void> inicializar() async {
+    print('\n══════════════════════════════════════');
+    print('🔥 [FCM] Iniciando servicio...');
+
     try {
-      print('🔥 [FCM] Inicializando Firebase...');
       await Firebase.initializeApp();
-      print('🔥 [FCM] Firebase inicializado OK');
+      print('✅ [FCM] Firebase OK');
+    } catch (e) {
+      print('❌ [FCM] Firebase init error: $e');
+      return;
+    }
 
-      FirebaseMessaging.onBackgroundMessage(
-        _firebaseMessagingBackgroundHandler,
-      );
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-      // Configurar notificaciones locales
-      const androidSettings = AndroidInitializationSettings(
-        '@mipmap/ic_launcher',
-      );
-      const initSettings = InitializationSettings(android: androidSettings);
-      await _local.initialize(initSettings);
-      print('🔥 [FCM] Notificaciones locales OK');
+    // Canal Android
+    const channel = AndroidNotificationChannel(
+      'empanatrack_channel',
+      'EmpanaTrack',
+      description: 'Notificaciones de ventas y pagos',
+      importance: Importance.high,
+    );
 
-      // Canal Android
-      const channel = AndroidNotificationChannel(
-        'empanatrack_channel',
-        'EmpanaTrack',
-        description: 'Notificaciones de ventas y pagos',
-        importance: Importance.high,
-      );
-      await _local
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >()
-          ?.createNotificationChannel(channel);
-      print('🔥 [FCM] Canal Android creado OK');
+    await _local.initialize(
+      const InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      ),
+      onDidReceiveNotificationResponse: (details) {
+        print('👆 [FCM] Notificacion tocada (local): ${details.payload}');
+        _refrescarProviders();
+      },
+    );
 
-      // Pedir permisos
-      final messaging = FirebaseMessaging.instance;
-      final settings = await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-      print('🔥 [FCM] Permisos: ${settings.authorizationStatus}');
+    await _local
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(channel);
 
-      // Escuchar mensajes en primer plano
-      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        print(
-          '🔔 [FCM] Mensaje recibido en primer plano: '
-          '${message.notification?.title}',
-        );
-        final notification = message.notification;
-        final android = message.notification?.android;
-        if (notification != null && android != null) {
-          _local.show(
-            notification.hashCode,
-            notification.title,
-            notification.body,
-            NotificationDetails(
-              android: AndroidNotificationDetails(
-                'empanatrack_channel',
-                'EmpanaTrack',
-                channelDescription: 'Notificaciones de ventas y pagos',
-                importance: Importance.high,
-                priority: Priority.high,
-                icon: '@mipmap/ic_launcher',
-              ),
+    // Permisos
+    await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    // ── Listener PRIMER PLANO ─────────────────────
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      print('\n🔔 [FCM] Mensaje en PRIMER PLANO');
+      print('   Título: ${message.notification?.title}');
+      print('   Cuerpo: ${message.notification?.body}');
+      print('   Datos:  ${message.data}');
+
+      // Refrescar providers aunque la app esté abierta
+      _refrescarProviders();
+
+      // Mostrar notificación local (en primer plano no aparece sola)
+      final notif = message.notification;
+      if (notif != null) {
+        _local.show(
+          notif.hashCode,
+          notif.title,
+          notif.body,
+          NotificationDetails(
+            android: AndroidNotificationDetails(
+              'empanatrack_channel',
+              'EmpanaTrack',
+              channelDescription: 'Notificaciones de ventas y pagos',
+              importance: Importance.high,
+              priority: Priority.high,
+              icon: '@mipmap/ic_launcher',
+              styleInformation: BigTextStyleInformation(notif.body ?? ''),
             ),
-          );
-        }
-      });
+          ),
+          payload: message.data.toString(),
+        );
+        print('✅ [FCM] Notificacion local mostrada');
+      }
+    });
 
-      print('🔥 [FCM] Servicio completamente inicializado');
-    } catch (e, stack) {
-      print('❌ [FCM] Error al inicializar: $e');
-      print('❌ [FCM] Stack: $stack');
+    // ── App abierta desde notificación (background → foreground) ──
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      print('\n👆 [FCM] App abierta desde notificacion');
+      print('   Datos: ${message.data}');
+      // Refrescar al abrir desde la notificación
+      _refrescarProviders();
+    });
+
+    // ── App estaba CERRADA y usuario tocó la notificación ────────
+    final initial = await FirebaseMessaging.instance.getInitialMessage();
+    if (initial != null) {
+      print('\n👆 [FCM] App abierta desde notificacion (cold start)');
+      print('   Datos: ${initial.data}');
+      // Pequeño delay para que los providers estén montados
+      await Future.delayed(const Duration(milliseconds: 800));
+      _refrescarProviders();
+    }
+
+    print('🔥 [FCM] Servicio listo');
+    print('══════════════════════════════════════\n');
+  }
+
+  // ══════════════════════════════════════════════
+  //  REFRESCAR PROVIDERS
+  // ══════════════════════════════════════════════
+  static void _refrescarProviders() {
+    if (_globalContainer == null) {
+      print('⚠️  [FCM] globalContainer no asignado');
+      return;
+    }
+    if (_providersParaRefrescar.isEmpty) {
+      print('⚠️  [FCM] No hay providers registrados para refrescar');
+      return;
+    }
+    for (final provider in _providersParaRefrescar) {
+      try {
+        _globalContainer!.invalidate(provider);
+        print('🔄 [FCM] Provider refrescado: $provider');
+      } catch (e) {
+        print('❌ [FCM] Error refrescando provider: $e');
+      }
     }
   }
 
+  // ══════════════════════════════════════════════
+  //  REGISTRAR TOKEN
+  // ══════════════════════════════════════════════
   static Future<void> registrarToken() async {
+    print('\n──────────────────────────────────────');
+    print('🔑 [FCM] Registrando token...');
     try {
-      print('🔑 [FCM] Obteniendo token...');
-
-      final messaging = FirebaseMessaging.instance;
-
-      // Verificar permisos primero
-      final settings = await messaging.getNotificationSettings();
-      print('🔑 [FCM] Estado permisos: ${settings.authorizationStatus}');
-
-      final token = await messaging.getToken();
-
-      if (token == null) {
-        print(
-          '❌ [FCM] Token es NULL — '
-          'verifica google-services.json y emulador con Google Play',
-        );
+      final settings = await FirebaseMessaging.instance
+          .getNotificationSettings();
+      if (settings.authorizationStatus == AuthorizationStatus.denied) {
+        print('❌ [FCM] Permisos denegados');
         return;
       }
 
-      print('✅ [FCM] Token obtenido: ${token.substring(0, 30)}...');
-      print('✅ [FCM] Token completo: $token');
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token == null) {
+        print('❌ [FCM] Token NULL (emulador sin Google Play?)');
+        return;
+      }
 
-      // Enviar al backend
-      print('🌐 [FCM] Enviando token al backend...');
-      final response = await ApiClient.post(
+      print('✅ [FCM] Token: ${token.substring(0, 40)}...');
+
+      await ApiClient.post(
         '/notificaciones/token',
         data: {'token': token, 'plataforma': 'android'},
       );
-      print('✅ [FCM] Token registrado en backend: ${response.data}');
+      print('✅ [FCM] Token guardado en backend');
 
-      // Listener para cuando el token cambia
-      messaging.onTokenRefresh.listen((nuevoToken) {
+      FirebaseMessaging.instance.onTokenRefresh.listen((nuevoToken) {
         print('🔄 [FCM] Token refrescado');
         ApiClient.post(
-          '/notificaciones/token',
-          data: {'token': nuevoToken, 'plataforma': 'android'},
-        );
+              '/notificaciones/token',
+              data: {'token': nuevoToken, 'plataforma': 'android'},
+            )
+            .then((_) => print('✅ [FCM] Token nuevo guardado'))
+            .catchError(
+              (e) => print('❌ [FCM] Error guardando token nuevo: $e'),
+            );
       });
-    } catch (e, stack) {
-      print('❌ [FCM] Error registrando token: $e');
-      print('❌ [FCM] Stack: $stack');
+    } catch (e) {
+      print('❌ [FCM] Error en registrarToken: $e');
     }
+    print('──────────────────────────────────────\n');
   }
 
+  // ══════════════════════════════════════════════
+  //  ELIMINAR TOKEN
+  // ══════════════════════════════════════════════
   static Future<void> eliminarToken() async {
+    print('🗑️  [FCM] Eliminando token...');
     try {
       await ApiClient.delete('/notificaciones/token');
-      await FirebaseMessaging.instance.deleteToken();
-      print('🗑️ [FCM] Token eliminado');
+      print('✅ [FCM] Token eliminado del backend');
     } catch (e) {
-      print('❌ [FCM] Error eliminando token: $e');
+      print('❌ [FCM] Error eliminando del backend: $e');
+    }
+    try {
+      await FirebaseMessaging.instance.deleteToken();
+      print('✅ [FCM] Token eliminado de Firebase');
+    } catch (e) {
+      print('❌ [FCM] Error eliminando de Firebase: $e');
     }
   }
 }

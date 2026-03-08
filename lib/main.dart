@@ -5,13 +5,15 @@ import 'app.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Inicializar Firebase y notificaciones
   await NotificacionesService.inicializar();
 
+  final container = ProviderContainer();
+  setGlobalContainer(container);   // ← conecta FCM con Riverpod
+
   runApp(
-    const ProviderScope(
-      child: EmpanaTrackApp(),
+    UncontrolledProviderScope(
+      container: container,
+      child: const EmpanaTrackApp(),
     ),
   );
 }
