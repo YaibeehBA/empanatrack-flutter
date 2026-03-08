@@ -1,4 +1,3 @@
-// lib/features/auth/providers/registro_publico_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 

@@ -8,6 +8,8 @@ class ApiClient {
   // para referirse a localhost de tu PC.
   // Cuando tengas la app en celular real, cambia por
   // la IP local de tu PC: ej. http://192.168.1.x:8000
+ 
+
 
   static final Dio _dio = Dio(
     BaseOptions(
