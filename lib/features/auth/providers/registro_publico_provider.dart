@@ -121,3 +121,14 @@ final registroPublicoProvider = StateNotifierProvider
     .autoDispose<RegistroPublicoNotifier, RegistroPublicoState>(
   (ref) => RegistroPublicoNotifier(),
 );
+
+final cedulaDisponibleProvider =
+    FutureProvider.family<bool, String>((ref, cedula) async {
+  if (cedula.length != 10) return true; // no consultar si no es válida aún
+  try {
+    final r = await ApiClient.getPublico('/auth/verificar-cedula/$cedula');
+    return r.data['disponible'] as bool;
+  } catch (_) {
+    return true; // si falla la red, no bloqueamos
+  }
+});
