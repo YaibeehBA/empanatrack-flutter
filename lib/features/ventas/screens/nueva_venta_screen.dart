@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/colores.dart';
+import '../../../core/network/api_client.dart';
 import '../providers/nueva_venta_provider.dart';
 import '../providers/productos_provider.dart';
 import '../../clientes/providers/clientes_provider.dart';
@@ -18,7 +19,7 @@ class NuevaVentaScreen extends ConsumerStatefulWidget {
 }
 
 class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
-  final _notasCtrl       = TextEditingController();
+  final _notasCtrl         = TextEditingController();
   final _buscarClienteCtrl = TextEditingController();
 
   @override
@@ -30,69 +31,63 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state           = ref.watch(nuevaVentaProvider);
-    final productosAsync  = ref.watch(productosProvider);
-    final clientesAsync   = ref.watch(clientesProvider);
+    final state          = ref.watch(nuevaVentaProvider);
+    final productosAsync = ref.watch(productosProvider);
+    final clientesAsync  = ref.watch(clientesProvider);
 
-    // Escuchar éxito o error
-      ref.listen<NuevaVentaState>(nuevaVentaProvider, (prev, next) {
-        if (next.exitoso) {
-          // Invalidar historial para todos los periodos
-          ref.invalidate(historialVentasProvider('hoy'));
-          ref.invalidate(historialVentasProvider('ayer'));
-          ref.invalidate(historialVentasProvider('semana'));
-          ref.invalidate(historialVentasProvider('mes'));
-          ref.invalidate(ventasHoyProvider);
-          // Invalidar resumen para todos los periodos
-          ref.invalidate(resumenDiaProvider('hoy'));
-          ref.invalidate(resumenDiaProvider('ayer'));
-          ref.invalidate(resumenDiaProvider('semana'));
-          ref.invalidate(resumenDiaProvider('mes'));
-          // Invalidar clientes
-          ref.invalidate(clientesProvider);
+    ref.listen<NuevaVentaState>(nuevaVentaProvider, (prev, next) {
+      if (next.exitoso) {
+        ref.invalidate(historialVentasProvider('hoy'));
+        ref.invalidate(historialVentasProvider('ayer'));
+        ref.invalidate(historialVentasProvider('semana'));
+        ref.invalidate(historialVentasProvider('mes'));
+        ref.invalidate(ventasHoyProvider);
+        ref.invalidate(resumenDiaProvider('hoy'));
+        ref.invalidate(resumenDiaProvider('ayer'));
+        ref.invalidate(resumenDiaProvider('semana'));
+        ref.invalidate(resumenDiaProvider('mes'));
+        ref.invalidate(clientesProvider);
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content:         Text('✅ Venta registrada correctamente'),
-              backgroundColor: AppColores.success,
-            ),
-          );
-          Future.delayed(const Duration(milliseconds: 300), () {
-            if (context.mounted) context.pop();
-          });
-        }
-        if (next.error != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content:         Text(next.error!),
-              backgroundColor: AppColores.danger,
-            ),
-          );
-        }
-      });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:         Text('✅ Venta registrada correctamente'),
+            backgroundColor: AppColores.success,
+          ),
+        );
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (context.mounted) context.pop();
+        });
+      }
+      if (next.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:         Text(next.error!),
+            backgroundColor: AppColores.danger,
+          ),
+        );
+      }
+    });
 
     return Scaffold(
       backgroundColor: AppColores.background,
       appBar: AppBar(
         backgroundColor: AppColores.primary,
         foregroundColor: Colors.white,
-        title:           const Text('Nueva Venta',
+        title: const Text('Nueva Venta',
             style: TextStyle(fontWeight: FontWeight.bold)),
       ),
-
-      // ── Botón registrar fijo abajo ───────────────────────
       bottomNavigationBar: _BottomBar(
         total:    state.total,
         cargando: state.cargando,
-        onTap:    () => ref.read(nuevaVentaProvider.notifier).registrarVenta(),
+        onTap:    () =>
+            ref.read(nuevaVentaProvider.notifier).registrarVenta(),
       ),
-
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
 
-          // ── Selector tipo de venta ───────────────────────
-          _SeccionTitulo(titulo: '1. Tipo de venta'),
+          // ── Tipo de venta ────────────────────────────────
+          const _SeccionTitulo(titulo: '1. Tipo de venta'),
           const SizedBox(height: 10),
           _SelectorTipo(
             seleccionado: state.tipo,
@@ -101,9 +96,9 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
           ),
           const SizedBox(height: 24),
 
-          // ── Selector de cliente (solo si es crédito) ─────
+          // ── Cliente (solo crédito) ───────────────────────
           if (state.tipo == 'credito') ...[
-            _SeccionTitulo(titulo: '2. Cliente'),
+            const _SeccionTitulo(titulo: '2. Cliente'),
             const SizedBox(height: 10),
             clientesAsync.when(
               loading: () =>
@@ -111,9 +106,9 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
               error: (e, _) =>
                   const Text('Error cargando clientes'),
               data: (clientes) => _SelectorCliente(
-                clientes:         clientes,
-                seleccionado:     state.clienteSelec,
-                buscarCtrl:       _buscarClienteCtrl,
+                clientes:      clientes,
+                seleccionado:  state.clienteSelec,
+                buscarCtrl:    _buscarClienteCtrl,
                 onSeleccionar: (c) => ref
                     .read(nuevaVentaProvider.notifier)
                     .seleccionarCliente(c),
@@ -124,7 +119,9 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
 
           // ── Productos ────────────────────────────────────
           _SeccionTitulo(
-            titulo: state.tipo == 'credito' ? '3. Productos' : '2. Productos',
+            titulo: state.tipo == 'credito'
+                ? '3. Productos'
+                : '2. Productos',
           ),
           const SizedBox(height: 10),
           productosAsync.when(
@@ -135,7 +132,7 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
             data: (productos) => _ListaProductos(
               productos: productos,
               carrito:   state.carrito,
-              onChange: (id, delta) => ref
+              onChange:  (id, delta) => ref
                   .read(nuevaVentaProvider.notifier)
                   .cambiarCantidad(id, delta),
               onAgregar: (p) => ref
@@ -145,31 +142,35 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
           ),
           const SizedBox(height: 24),
 
-          // ── Carrito (resumen) ─────────────────────────────
+          // ── Resumen carrito ──────────────────────────────
           if (state.carrito.isNotEmpty) ...[
             _SeccionTitulo(
-              titulo: state.tipo == 'credito' ? '4. Resumen' : '3. Resumen',
+              titulo: state.tipo == 'credito'
+                  ? '4. Resumen'
+                  : '3. Resumen',
             ),
             const SizedBox(height: 10),
-            _ResumenCarrito(carrito: state.carrito, total: state.total),
+            _ResumenCarrito(
+                carrito: state.carrito, total: state.total),
             const SizedBox(height: 24),
           ],
 
-          // ── Notas ─────────────────────────────────────────
-          _SeccionTitulo(titulo: 'Notas (opcional)'),
+          // ── Notas ────────────────────────────────────────
+          const _SeccionTitulo(titulo: 'Notas (opcional)'),
           const SizedBox(height: 10),
           TextField(
-            controller:  _notasCtrl,
-            maxLines:    2,
-            onChanged: (v) =>
-                ref.read(nuevaVentaProvider.notifier).actualizarNotas(v),
+            controller: _notasCtrl,
+            maxLines:   2,
+            onChanged:  (v) => ref
+                .read(nuevaVentaProvider.notifier)
+                .actualizarNotas(v),
             decoration: InputDecoration(
-              hintText:     'Ej: Entrega a las 10am...',
-              border:       OutlineInputBorder(
+              hintText:  'Ej: Entrega a las 10am...',
+              border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              filled:      true,
-              fillColor:   Colors.white,
+              filled:    true,
+              fillColor: Colors.white,
             ),
           ),
           const SizedBox(height: 100),
@@ -179,7 +180,9 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
   }
 }
 
-// ── Widgets internos ───────────────────────────────────────
+// ══════════════════════════════════════════════════════════
+//  WIDGETS INTERNOS
+// ══════════════════════════════════════════════════════════
 
 class _SeccionTitulo extends StatelessWidget {
   final String titulo;
@@ -199,29 +202,31 @@ class _SeccionTitulo extends StatelessWidget {
   }
 }
 
+// ── Selector tipo ─────────────────────────────────────────
 class _SelectorTipo extends StatelessWidget {
-  final String   seleccionado;
+  final String           seleccionado;
   final Function(String) onChange;
-  const _SelectorTipo({required this.seleccionado, required this.onChange});
+  const _SelectorTipo(
+      {required this.seleccionado, required this.onChange});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         _TipoBtn(
-          label:      '💳  Fiado (Crédito)',
-          valor:      'credito',
-          activo:     seleccionado == 'credito',
-          color:      AppColores.warning,
-          onTap:      () => onChange('credito'),
+          label:  '💳  Fiado (Crédito)',
+          valor:  'credito',
+          activo: seleccionado == 'credito',
+          color:  AppColores.warning,
+          onTap:  () => onChange('credito'),
         ),
         const SizedBox(width: 12),
         _TipoBtn(
-          label:      '💵  Contado',
-          valor:      'contado',
-          activo:     seleccionado == 'contado',
-          color:      AppColores.success,
-          onTap:      () => onChange('contado'),
+          label:  '💵  Contado',
+          valor:  'contado',
+          activo: seleccionado == 'contado',
+          color:  AppColores.success,
+          onTap:  () => onChange('contado'),
         ),
       ],
     );
@@ -229,14 +234,17 @@ class _SelectorTipo extends StatelessWidget {
 }
 
 class _TipoBtn extends StatelessWidget {
-  final String  label;
-  final String  valor;
-  final bool    activo;
-  final Color   color;
+  final String       label;
+  final String       valor;
+  final bool         activo;
+  final Color        color;
   final VoidCallback onTap;
   const _TipoBtn({
-    required this.label, required this.valor, required this.activo,
-    required this.color, required this.onTap,
+    required this.label,
+    required this.valor,
+    required this.activo,
+    required this.color,
+    required this.onTap,
   });
 
   @override
@@ -250,7 +258,7 @@ class _TipoBtn extends StatelessWidget {
           decoration: BoxDecoration(
             color:        activo ? color : Colors.white,
             borderRadius: BorderRadius.circular(12),
-            border:       Border.all(
+            border: Border.all(
               color: activo ? color : Colors.grey.shade300,
               width: 2,
             ),
@@ -271,10 +279,11 @@ class _TipoBtn extends StatelessWidget {
   }
 }
 
+// ── Selector cliente ──────────────────────────────────────
 class _SelectorCliente extends StatefulWidget {
-  final List<ClienteModel>    clientes;
-  final ClienteModel?         seleccionado;
-  final TextEditingController buscarCtrl;
+  final List<ClienteModel>     clientes;
+  final ClienteModel?          seleccionado;
+  final TextEditingController  buscarCtrl;
   final Function(ClienteModel) onSeleccionar;
 
   const _SelectorCliente({
@@ -294,25 +303,27 @@ class _SelectorClienteState extends State<_SelectorCliente> {
   List<ClienteModel> get _filtrados {
     final q = widget.buscarCtrl.text.toLowerCase();
     if (q.isEmpty) return widget.clientes;
-    return widget.clientes.where((c) =>
-      c.nombre.toLowerCase().contains(q) ||
-      c.cedula.contains(q)
-    ).toList();
+    return widget.clientes
+        .where((c) =>
+            c.nombre.toLowerCase().contains(q) ||
+            c.cedula.contains(q))
+        .toList();
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Campo de búsqueda / cliente seleccionado
         GestureDetector(
-          onTap: () => setState(() => _mostrarLista = !_mostrarLista),
+          onTap: () =>
+              setState(() => _mostrarLista = !_mostrarLista),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color:        Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border:       Border.all(
+              border: Border.all(
                 color: widget.seleccionado != null
                     ? AppColores.accent
                     : Colors.grey.shade300,
@@ -321,12 +332,14 @@ class _SelectorClienteState extends State<_SelectorCliente> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.person_outline, color: AppColores.textSecond),
+                const Icon(Icons.person_outline,
+                    color: AppColores.textSecond),
                 const SizedBox(width: 12),
                 Expanded(
                   child: widget.seleccionado != null
                       ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
                           children: [
                             Text(
                               widget.seleccionado!.nombre,
@@ -336,7 +349,8 @@ class _SelectorClienteState extends State<_SelectorCliente> {
                               ),
                             ),
                             Text(
-                              'CI: ${widget.seleccionado!.cedula}  •  ${widget.seleccionado!.empresa ?? 'Independiente'}',
+                              'CI: ${widget.seleccionado!.cedula}  •  '
+                              '${widget.seleccionado!.empresa ?? 'Independiente'}',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color:    AppColores.textSecond,
@@ -346,7 +360,8 @@ class _SelectorClienteState extends State<_SelectorCliente> {
                         )
                       : const Text(
                           'Seleccionar cliente...',
-                          style: TextStyle(color: AppColores.textSecond),
+                          style: TextStyle(
+                              color: AppColores.textSecond),
                         ),
                 ),
                 Icon(
@@ -360,7 +375,6 @@ class _SelectorClienteState extends State<_SelectorCliente> {
           ),
         ),
 
-        // Lista desplegable
         if (_mostrarLista) ...[
           const SizedBox(height: 8),
           Container(
@@ -378,43 +392,42 @@ class _SelectorClienteState extends State<_SelectorCliente> {
             ),
             child: Column(
               children: [
-                // Buscador interno
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: TextField(
-                    controller:  widget.buscarCtrl,
-                    autofocus:   true,
-                    onChanged:   (_) => setState(() {}),
+                    controller: widget.buscarCtrl,
+                    autofocus:  true,
+                    onChanged:  (_) => setState(() {}),
                     decoration: InputDecoration(
-                      hintText:    'Buscar por nombre o cédula...',
-                      prefixIcon:  const Icon(Icons.search),
-                      border:      OutlineInputBorder(
+                      hintText:   'Buscar por nombre o cédula...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      isDense:     true,
-                      filled:      true,
-                      fillColor:   AppColores.background,
+                      isDense:   true,
+                      filled:    true,
+                      fillColor: AppColores.background,
                     ),
                   ),
                 ),
-                // Lista de resultados
                 ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 240),
+                  constraints:
+                      const BoxConstraints(maxHeight: 240),
                   child: ListView.builder(
                     shrinkWrap:  true,
                     itemCount:   _filtrados.length,
                     itemBuilder: (ctx, i) {
                       final c = _filtrados[i];
                       return ListTile(
-                        title: Text(
-                          c.nombre,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
+                        title: Text(c.nombre,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600)),
                         subtitle: Text(
-                           '${c.empresa ?? 'Independiente'}  •  CI: ${c.cedula}',
+                          '${c.empresa ?? 'Independiente'}  •  CI: ${c.cedula}',
                         ),
                         leading: CircleAvatar(
-                          backgroundColor: AppColores.accent.withOpacity(0.15),
+                          backgroundColor:
+                              AppColores.accent.withOpacity(0.15),
                           child: Text(
                             c.nombre[0].toUpperCase(),
                             style: const TextStyle(
@@ -432,37 +445,35 @@ class _SelectorClienteState extends State<_SelectorCliente> {
                     },
                   ),
                 ),
-                // ── NUEVO: Botón para crear cliente ─────────────
                 const Divider(height: 1),
                 ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: AppColores.success.withOpacity(0.15),
-                    child: const Icon(
-                      Icons.person_add_outlined,
-                      color: AppColores.success,
-                    ),
+                    backgroundColor:
+                        AppColores.success.withOpacity(0.15),
+                    child: const Icon(Icons.person_add_outlined,
+                        color: AppColores.success),
                   ),
                   title: const Text(
                     '+ Registrar nuevo cliente',
                     style: TextStyle(
-                      color: AppColores.success,
+                      color:      AppColores.success,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  subtitle: const Text('El cliente no está en la lista'),
+                  subtitle:
+                      const Text('El cliente no está en la lista'),
                   onTap: () async {
                     setState(() => _mostrarLista = false);
-                    // Navegar y esperar el cliente creado
-                    final nuevoCliente = await context.push<ClienteModel>(
+                    final nuevoCliente =
+                        await context.push<ClienteModel>(
                       '/nuevo-cliente',
-                      extra: true, // desdeNuevaVenta = true
+                      extra: true,
                     );
                     if (nuevoCliente != null) {
                       widget.onSeleccionar(nuevoCliente);
                     }
                   },
                 ),
-                // ────────────────────────────────────────────────
               ],
             ),
           ),
@@ -472,10 +483,11 @@ class _SelectorClienteState extends State<_SelectorCliente> {
   }
 }
 
+// ── Lista productos ───────────────────────────────────────
 class _ListaProductos extends StatelessWidget {
-  final List<ProductoModel>  productos;
-  final List<ItemCarrito>    carrito;
-  final Function(String, int) onChange;
+  final List<ProductoModel>     productos;
+  final List<ItemCarrito>       carrito;
+  final Function(String, int)   onChange;
   final Function(ProductoModel) onAgregar;
 
   const _ListaProductos({
@@ -486,7 +498,8 @@ class _ListaProductos extends StatelessWidget {
   });
 
   int _cantidadEn(String productoId) {
-    final item = carrito.where((i) => i.producto.id == productoId);
+    final item =
+        carrito.where((i) => i.producto.id == productoId);
     return item.isEmpty ? 0 : item.first.cantidad;
   }
 
@@ -497,7 +510,8 @@ class _ListaProductos extends StatelessWidget {
         final cantidad = _cantidadEn(p.id);
         return Container(
           margin:  const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(
+              horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color:        Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -510,20 +524,36 @@ class _ListaProductos extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // Ícono producto
+
+              // ── Imagen o emoji ─────────────────────
               Container(
-                width: 42, height: 42,
+                width: 52, height: 52,
                 decoration: BoxDecoration(
-                  color:        AppColores.warning.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(10),
+                  color: AppColores.warning.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Center(
-                  child: Text('🫓', style: TextStyle(fontSize: 22)),
-                ),
+                child: p.imagenUrl != null &&
+                        p.imagenUrl!.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          '${ApiClient.baseUrl}${p.imagenUrl}',
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              const Center(
+                            child: Text('🫓',
+                                style: TextStyle(fontSize: 22)),
+                          ),
+                        ),
+                      )
+                    : const Center(
+                        child: Text('🫓',
+                            style: TextStyle(fontSize: 22)),
+                      ),
               ),
               const SizedBox(width: 12),
 
-              // Nombre y precio
+              // ── Nombre y precio ────────────────────
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -538,7 +568,7 @@ class _ListaProductos extends StatelessWidget {
                     Text(
                       '\$${p.precio.toStringAsFixed(2)} c/u',
                       style: const TextStyle(
-                        color:   AppColores.accent,
+                        color:    AppColores.accent,
                         fontSize: 13,
                       ),
                     ),
@@ -546,7 +576,7 @@ class _ListaProductos extends StatelessWidget {
                 ),
               ),
 
-              // Controles cantidad
+              // ── Controles cantidad ─────────────────
               if (cantidad == 0)
                 GestureDetector(
                   onTap: () => onAgregar(p),
@@ -571,12 +601,13 @@ class _ListaProductos extends StatelessWidget {
                 Row(
                   children: [
                     _CantidadBtn(
-                      icono:  Icons.remove,
-                      onTap:  () => onChange(p.id, -1),
-                      color:  AppColores.danger,
+                      icono: Icons.remove,
+                      onTap: () => onChange(p.id, -1),
+                      color: AppColores.danger,
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12),
                       child: Text(
                         '$cantidad',
                         style: const TextStyle(
@@ -586,9 +617,9 @@ class _ListaProductos extends StatelessWidget {
                       ),
                     ),
                     _CantidadBtn(
-                      icono:  Icons.add,
-                      onTap:  () => onChange(p.id, 1),
-                      color:  AppColores.success,
+                      icono: Icons.add,
+                      onTap: () => onChange(p.id, 1),
+                      color: AppColores.success,
                     ),
                   ],
                 ),
@@ -604,7 +635,8 @@ class _CantidadBtn extends StatelessWidget {
   final IconData     icono;
   final VoidCallback onTap;
   final Color        color;
-  const _CantidadBtn({required this.icono, required this.onTap, required this.color});
+  const _CantidadBtn(
+      {required this.icono, required this.onTap, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -622,38 +654,44 @@ class _CantidadBtn extends StatelessWidget {
   }
 }
 
+// ── Resumen carrito ───────────────────────────────────────
 class _ResumenCarrito extends StatelessWidget {
   final List<ItemCarrito> carrito;
   final double            total;
-  const _ResumenCarrito({required this.carrito, required this.total});
+  const _ResumenCarrito(
+      {required this.carrito, required this.total});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding:     const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color:        AppColores.primary.withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
-        border:       Border.all(color: AppColores.primary.withOpacity(0.15)),
+        border: Border.all(
+            color: AppColores.primary.withOpacity(0.15)),
       ),
       child: Column(
         children: [
           ...carrito.map((i) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                Text(
-                  '${i.cantidad}x  ${i.producto.nombre}',
-                  style: const TextStyle(color: AppColores.textPrimary),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Text(
+                      '${i.cantidad}x  ${i.producto.nombre}',
+                      style: const TextStyle(
+                          color: AppColores.textPrimary),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '\$${i.subtotal.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ],
                 ),
-                const Spacer(),
-                Text(
-                  '\$${i.subtotal.toStringAsFixed(2)}',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-          )),
+              )),
           const Divider(height: 20),
           Row(
             children: [
@@ -682,17 +720,22 @@ class _ResumenCarrito extends StatelessWidget {
   }
 }
 
+// ── Bottom bar ────────────────────────────────────────────
 class _BottomBar extends StatelessWidget {
   final double       total;
   final bool         cargando;
   final VoidCallback onTap;
-  const _BottomBar({required this.total, required this.cargando, required this.onTap});
+  const _BottomBar(
+      {required this.total,
+      required this.cargando,
+      required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.fromLTRB(
-        20, 16, 20, MediaQuery.of(context).padding.bottom + 16,
+        20, 16, 20,
+        MediaQuery.of(context).padding.bottom + 16,
       ),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -707,11 +750,13 @@ class _BottomBar extends StatelessWidget {
       child: Row(
         children: [
           Column(
-            mainAxisSize:        MainAxisSize.min,
+            mainAxisSize:       MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text('Total a registrar',
-                  style: TextStyle(color: AppColores.textSecond, fontSize: 12)),
+                  style: TextStyle(
+                      color:    AppColores.textSecond,
+                      fontSize: 12)),
               Text(
                 '\$${total.toStringAsFixed(2)}',
                 style: const TextStyle(
@@ -727,7 +772,7 @@ class _BottomBar extends StatelessWidget {
             child: SizedBox(
               height: 52,
               child: ElevatedButton(
-                onPressed:  cargando ? null : onTap,
+                onPressed: cargando ? null : onTap,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColores.primary,
                   foregroundColor: Colors.white,
@@ -737,15 +782,18 @@ class _BottomBar extends StatelessWidget {
                 ),
                 child: cargando
                     ? const SizedBox(
-                        width: 22, height: 22,
+                        width:  22,
+                        height: 22,
                         child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2.5,
+                          color:       Colors.white,
+                          strokeWidth: 2.5,
                         ),
                       )
                     : const Text(
                         'Registrar Venta',
                         style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold,
+                          fontSize:   16,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
               ),

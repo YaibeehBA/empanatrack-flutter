@@ -34,6 +34,8 @@ dependencies:
   # HTTP client para llamar a tu API FastAPI
   dio: ^5.4.0
 
+  image_picker: ^1.0.7
+
   # Gestión de estado reactivo
   flutter_riverpod: ^2.5.1
 

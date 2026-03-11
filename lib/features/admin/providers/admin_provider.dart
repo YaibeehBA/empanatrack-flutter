@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/network/api_client.dart';
 
 // ── Modelos ───────────────────────────────────────────────
@@ -46,25 +48,28 @@ class EmpresaAdmin {
   });
 
   factory EmpresaAdmin.fromJson(Map<String, dynamic> j) => EmpresaAdmin(
-    id:        j['id'],
-    nombre:    j['nombre'],
-    direccion: j['direccion'],
-    telefono:  j['telefono'],
+    id:         j['id'],
+    nombre:     j['nombre'],
+    direccion:  j['direccion'],
+    telefono:   j['telefono'],
     estaActiva: j['esta_activa'],
   );
 }
 
+// ── ProductoAdmin con imagenUrl ───────────────────────────
 class ProductoAdmin {
-  final String id;
-  final String nombre;
-  final double precio;
-  final bool   estaActivo;
+  final String  id;
+  final String  nombre;
+  final double  precio;
+  final bool    estaActivo;
+  final String? imagenUrl;   // ← NUEVO
 
   const ProductoAdmin({
     required this.id,
     required this.nombre,
     required this.precio,
     required this.estaActivo,
+    this.imagenUrl,
   });
 
   factory ProductoAdmin.fromJson(Map<String, dynamic> j) => ProductoAdmin(
@@ -72,6 +77,7 @@ class ProductoAdmin {
     nombre:     j['nombre'],
     precio:     (j['precio'] as num).toDouble(),
     estaActivo: j['esta_activo'],
+    imagenUrl:  j['imagen_url'],   // ← NUEVO
   );
 }
 
@@ -118,25 +124,71 @@ final resumenAdminProvider = FutureProvider<ResumenAdmin>((ref) async {
   return ResumenAdmin.fromJson(r.data);
 });
 
-// ── Provider de operaciones (crear/editar) ────────────────
+// ── Provider de operaciones ───────────────────────────────
 
 class AdminOpState {
   final bool    cargando;
   final String? error;
   final bool    exitoso;
+  final String? ultimoId;  // ← AGREGADO
+
   const AdminOpState({
-    this.cargando = false, this.error, this.exitoso = false,
+    this.cargando = false, 
+    this.error, 
+    this.exitoso = false, 
+    this.ultimoId,  // ← AGREGADO
   });
-  AdminOpState copyWith({bool? cargando, String? error, bool? exitoso}) =>
-      AdminOpState(
-        cargando: cargando ?? this.cargando,
-        error:    error,
-        exitoso:  exitoso  ?? this.exitoso,
-      );
+  
+  AdminOpState copyWith({
+    bool? cargando, 
+    String? error, 
+    bool? exitoso, 
+    String? ultimoId,  // ← AGREGADO
+  }) => AdminOpState(
+    cargando: cargando ?? this.cargando,
+    error:    error,
+    exitoso:  exitoso  ?? this.exitoso,
+    ultimoId: ultimoId ?? this.ultimoId,  // ← AGREGADO
+  );
 }
 
 class AdminOpNotifier extends StateNotifier<AdminOpState> {
   AdminOpNotifier() : super(const AdminOpState());
+
+  // ── MODIFICADO: crearProducto guarda el id ─────────────
+  Future<void> crearProducto(Map<String, dynamic> datos) async {
+    state = state.copyWith(cargando: true);
+    try {
+      final r = await ApiClient.post('/admin/productos', data: datos);
+      state = state.copyWith(
+        cargando: false,
+        exitoso:  true,
+        ultimoId: r.data['id'].toString(),
+      );
+    } catch (e) {
+      String msg = 'Error en la operación.';
+      final match = RegExp(r'"detail":"([^"]+)"').firstMatch(e.toString());
+      if (match != null) msg = match.group(1)!;
+      state = state.copyWith(cargando: false, error: msg);
+    }
+  }
+
+  Future<void> editarProducto(String id, Map<String, dynamic> datos) =>
+      _ejecutar(() => ApiClient.put('/admin/productos/$id', data: datos));
+
+  // ── AGREGADO: eliminarProducto ─────────────────────────
+  Future<void> eliminarProducto(String id) async {
+    state = state.copyWith(cargando: true);
+    try {
+      await ApiClient.delete('/admin/productos/$id');
+      state = state.copyWith(cargando: false, exitoso: true);
+    } catch (e) {
+      String msg = 'Error al eliminar.';
+      final match = RegExp(r'"detail":"([^"]+)"').firstMatch(e.toString());
+      if (match != null) msg = match.group(1)!;
+      state = state.copyWith(cargando: false, error: msg);
+    }
+  }
 
   Future<void> crearVendedor(Map<String, dynamic> datos) =>
       _ejecutar(() => ApiClient.post('/admin/vendedores', data: datos));
@@ -150,11 +202,28 @@ class AdminOpNotifier extends StateNotifier<AdminOpState> {
   Future<void> editarEmpresa(String id, Map<String, dynamic> datos) =>
       _ejecutar(() => ApiClient.put('/admin/empresas/$id', data: datos));
 
-  Future<void> crearProducto(Map<String, dynamic> datos) =>
-      _ejecutar(() => ApiClient.post('/admin/productos', data: datos));
-
-  Future<void> editarProducto(String id, Map<String, dynamic> datos) =>
-      _ejecutar(() => ApiClient.put('/admin/productos/$id', data: datos));
+  // ── subir imagen a un producto existente ───────────────
+  Future<void> subirImagenProducto(String id, XFile imagen) async {
+    state = state.copyWith(cargando: true);
+    try {
+      final formData = FormData.fromMap({
+        'imagen': await MultipartFile.fromFile(
+          imagen.path,
+          filename: imagen.name,
+        ),
+      });
+      await ApiClient.postFormData(
+        '/admin/productos/$id/imagen',
+        formData: formData,
+      );
+      state = state.copyWith(cargando: false, exitoso: true);
+    } catch (e) {
+      String msg = 'Error al subir la imagen.';
+      final match = RegExp(r'"detail":"([^"]+)"').firstMatch(e.toString());
+      if (match != null) msg = match.group(1)!;
+      state = state.copyWith(cargando: false, error: msg);
+    }
+  }
 
   Future<void> _ejecutar(Future Function() accion) async {
     state = state.copyWith(cargando: true);
@@ -171,7 +240,6 @@ class AdminOpNotifier extends StateNotifier<AdminOpState> {
 
   void resetear() => state = const AdminOpState();
 }
-
 
 final adminOpProvider =
     StateNotifierProvider<AdminOpNotifier, AdminOpState>(

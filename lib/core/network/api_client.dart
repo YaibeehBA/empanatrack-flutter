@@ -3,13 +3,14 @@ import 'package:dio/dio.dart';
 import '../storage/token_storage.dart';
 
 class ApiClient {
-  static const _baseUrl = 'http://10.0.2.2:8000';
+   static const _baseUrl = 'http://10.0.2.2:8000';
+   static String get baseUrl => _baseUrl;
   // ⚠️ 10.0.2.2 es la IP especial del emulador Android
   // para referirse a localhost de tu PC.
   // Cuando tengas la app en celular real, cambia por
   // la IP local de tu PC: ej. http://192.168.1.x:8000
- 
-
+  
+  //static const _baseUrl = 'https://3143-2800-bf0-806e-fff-c07d-6aa8-9577-159e.ngrok-free.app';
 
   static final Dio _dio = Dio(
     BaseOptions(
@@ -87,5 +88,13 @@ static Future<Response> postPublico(
   ));
   return await dio.post(path, data: data);
 }
+
+static Future<Response> postFormData(
+  String path, {
+  required FormData formData,
+}) async {
+  return await _dio.post(path, data: formData);
+}
+
 }
 

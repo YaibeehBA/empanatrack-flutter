@@ -15,6 +15,7 @@ class ProductoDisponible {
   final double  precio;
   final String? descripcion;
   final bool    estaActivo;
+  final String? imagenUrl; 
 
   const ProductoDisponible({
     required this.id,
@@ -22,6 +23,7 @@ class ProductoDisponible {
     required this.precio,
     this.descripcion,
     required this.estaActivo,
+    this.imagenUrl, 
   });
 
   factory ProductoDisponible.fromJson(Map<String, dynamic> j) =>
@@ -29,8 +31,9 @@ class ProductoDisponible {
         id:          j['id'].toString(),
         nombre:      j['nombre'].toString(),
         precio:      (j['precio'] as num).toDouble(),
-        descripcion: null, 
+        descripcion: null,
         estaActivo:  j['esta_activo'] as bool? ?? true,
+        imagenUrl:   j['imagen_url'] as String?, // ← NUEVO
       );
 }
 
@@ -325,7 +328,7 @@ class _ProductoCard extends StatelessWidget {
       child: Row(
         children: [
 
-          // ── Ícono / inicial ──────────────────────────
+          // ── Imagen o inicial ─────────────────────────
           Container(
             width:  52,
             height: 52,
@@ -333,17 +336,17 @@ class _ProductoCard extends StatelessWidget {
               color:        AppColores.primary.withOpacity(0.10),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Center(
-              child: Text(
-                producto.nombre.isNotEmpty
-                    ? producto.nombre[0].toUpperCase()
-                    : '?',
-                style: TextStyle(
-                  fontSize:   22,
-                  fontWeight: FontWeight.bold,
-                  color:      AppColores.primary,
-                ),
-              ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: producto.imagenUrl != null &&
+                      producto.imagenUrl!.isNotEmpty
+                  ? Image.network(
+                      '${ApiClient.baseUrl}${producto.imagenUrl}',
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          _InicialWidget(nombre: producto.nombre),
+                    )
+                  : _InicialWidget(nombre: producto.nombre),
             ),
           ),
           const SizedBox(width: 14),
@@ -411,6 +414,28 @@ class _ProductoCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  WIDGET INICIAL (fallback sin imagen)
+// ══════════════════════════════════════════════════════════
+class _InicialWidget extends StatelessWidget {
+  final String nombre;
+  const _InicialWidget({required this.nombre});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        nombre.isNotEmpty ? nombre[0].toUpperCase() : '?',
+        style: const TextStyle(
+          fontSize:   22,
+          fontWeight: FontWeight.bold,
+          color:      AppColores.primary,
+        ),
       ),
     );
   }
