@@ -11,10 +11,10 @@ import 'core/network/api_client.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
 
+import 'features/auth/screens/recuperar_contrasena_screen.dart';
 import 'features/auth/screens/registro_screen.dart';
 import 'features/ventas/screens/nueva_venta_screen.dart';
 import 'features/clientes/screens/clientes_screen.dart';
-import 'features/clientes/screens/mi_cuenta_screen.dart';
 import 'features/clientes/screens/registrar_pago_screen.dart';
 import 'features/ventas/screens/vendedor_shell.dart';
 import 'features/clientes/screens/cliente_shell.dart';
@@ -49,6 +49,11 @@ class EmpanaTrackApp extends ConsumerWidget {
           builder: (ctx, state) => const LoginScreen(),
         ),
         GoRoute(
+          path:    '/recuperar-contrasena',
+          builder: (context, state) =>
+              const RecuperarContrasenaScreen(),
+        ),
+          GoRoute(
           path:    '/registro',
           builder: (ctx, state) => const RegistroScreen(),
         ),

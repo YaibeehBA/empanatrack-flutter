@@ -172,10 +172,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                   ),
                 ),
+                
+                // ── ¿Olvidaste tu contraseña? ────────────────────────
+                const SizedBox(height: 16),
+                
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => context.push('/recuperar-contrasena'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColores.primary,
+                      padding: EdgeInsets.zero,
+                    ),
+                    child: const Text(
+                      '¿Olvidaste tu contraseña?',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ),
 
-                // ==================================================
-                // NUEVO BLOQUE: Botón de registro y separador
-                // ==================================================
                 const SizedBox(height: 24),
 
                 // Separador
@@ -223,7 +238,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                 ),
-                // ==================================================
               ],
             ),
           ),
