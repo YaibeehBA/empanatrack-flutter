@@ -124,13 +124,12 @@ class AdminDashboardScreen extends ConsumerWidget {
             // ── Sección: Reportes ────────────────────────
             const _SecLabel(texto: 'REPORTES'),
             const SizedBox(height: 12),
-
             _MenuCard(
               icono:    '📊',
-              titulo:   'Deudas por cliente',
-              subtitulo: 'Ver quién debe más',
-              color:    AppColores.danger,
-              onTap:    () => context.push('/admin/reportes/deudas'),
+              titulo:   'Reportes generales',
+              subtitulo: 'Ventas, productos, deudas y más',
+              color:    AppColores.primary,
+              onTap:    () => context.push('/admin/reportes'),
             ),
 
             const SizedBox(height: 32),
