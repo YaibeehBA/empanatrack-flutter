@@ -8,6 +8,7 @@ import '../../auth/providers/auth_provider.dart';
 import 'dashboard_screen.dart';
 import 'historial_screen.dart';
 import '../../clientes/screens/clientes_screen.dart';
+import 'rutas_vendedor_screen.dart';
 
 // ── Provider tab activo ───────────────────────────────────
 final tabActivoProvider = StateProvider<int>((ref) => 0);
@@ -58,6 +59,7 @@ class VendedorShell extends ConsumerWidget {
       DashboardScreen(),
       ClientesScreen(),
       HistorialScreen(),
+      RutasVendedorScreen(), 
       _ConfiguracionScreen(),
     ];
 
@@ -94,42 +96,45 @@ class VendedorShell extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(
                 horizontal: 8, vertical: 6),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _NavItem(
-                  icono:       Icons.home_outlined,
-                  iconoActivo: Icons.home_rounded,
-                  label:       'Inicio',
-                  activo:      tab == 0,
-                  onTap: () =>
-                      ref.read(tabActivoProvider.notifier).state = 0,
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _NavItem(
+                      icono:       Icons.home_outlined,
+                      iconoActivo: Icons.home_rounded,
+                      label:       'Inicio',
+                      activo:      tab == 0,
+                      onTap: () => ref.read(tabActivoProvider.notifier).state = 0,
+                    ),
+                    _NavItem(
+                      icono:       Icons.people_outline,
+                      iconoActivo: Icons.people_rounded,
+                      label:       'Clientes',
+                      activo:      tab == 1,
+                      onTap: () => ref.read(tabActivoProvider.notifier).state = 1,
+                    ),
+                    _NavItem(
+                      icono:       Icons.receipt_long_outlined,
+                      iconoActivo: Icons.receipt_long_rounded,
+                      label:       'Historial',
+                      activo:      tab == 2,
+                      onTap: () => ref.read(tabActivoProvider.notifier).state = 2,
+                    ),
+                    _NavItem(
+                      icono:       Icons.route_outlined,
+                      iconoActivo: Icons.route_rounded,
+                      label:       'Rutas',
+                      activo:      tab == 3,
+                      onTap: () => ref.read(tabActivoProvider.notifier).state = 3,
+                    ),
+                    _NavItem(
+                      icono:       Icons.settings_outlined,
+                      iconoActivo: Icons.settings_rounded,
+                      label:       'Config.',
+                      activo:      tab == 4,
+                      onTap: () => ref.read(tabActivoProvider.notifier).state = 4,
+                    ),
+                  ],
                 ),
-                _NavItem(
-                  icono:       Icons.people_outline,
-                  iconoActivo: Icons.people_rounded,
-                  label:       'Clientes',
-                  activo:      tab == 1,
-                  onTap: () =>
-                      ref.read(tabActivoProvider.notifier).state = 1,
-                ),
-                _NavItem(
-                  icono:       Icons.receipt_long_outlined,
-                  iconoActivo: Icons.receipt_long_rounded,
-                  label:       'Historial',
-                  activo:      tab == 2,
-                  onTap: () =>
-                      ref.read(tabActivoProvider.notifier).state = 2,
-                ),
-                _NavItem(
-                  icono:       Icons.settings_outlined,
-                  iconoActivo: Icons.settings_rounded,
-                  label:       'Config.',
-                  activo:      tab == 3,
-                  onTap: () =>
-                      ref.read(tabActivoProvider.notifier).state = 3,
-                ),
-              ],
-            ),
           ),
         ),
       ),

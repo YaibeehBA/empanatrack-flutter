@@ -52,6 +52,20 @@ static String? telefonoEcuador(String? value) {
   }
   return null;
 }
+static String? latitud(String? value) {
+    if (value == null || value.isEmpty) return null; // opcional
+    final v = double.tryParse(value);
+    if (v == null) return 'Ingresa un número válido';
+    if (v < -90 || v > 90) return 'Latitud debe estar entre -90 y 90';
+    return null;
+  }
 
+  static String? longitud(String? value) {
+    if (value == null || value.isEmpty) return null; // opcional
+    final v = double.tryParse(value);
+    if (v == null) return 'Ingresa un número válido';
+    if (v < -180 || v > 180) return 'Longitud debe estar entre -180 y 180';
+    return null;
+  }
 }
 

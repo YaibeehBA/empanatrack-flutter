@@ -38,6 +38,8 @@ class EmpresaAdmin {
   final String? direccion;
   final String? telefono;
   final bool    estaActiva;
+  final double? latitud;    
+  final double? longitud;   
 
   const EmpresaAdmin({
     required this.id,
@@ -45,6 +47,8 @@ class EmpresaAdmin {
     this.direccion,
     this.telefono,
     required this.estaActiva,
+    this.latitud,            
+    this.longitud,           
   });
 
   factory EmpresaAdmin.fromJson(Map<String, dynamic> j) => EmpresaAdmin(
@@ -53,6 +57,10 @@ class EmpresaAdmin {
     direccion:  j['direccion'],
     telefono:   j['telefono'],
     estaActiva: j['esta_activa'],
+    latitud:    j['latitud']  != null
+        ? (j['latitud']  as num).toDouble() : null,
+    longitud:   j['longitud'] != null
+        ? (j['longitud'] as num).toDouble() : null,
   );
 }
 
@@ -189,7 +197,17 @@ class AdminOpNotifier extends StateNotifier<AdminOpState> {
       state = state.copyWith(cargando: false, error: msg);
     }
   }
+//---------------
 
+Future<void> eliminarVendedor(String id) =>
+    _ejecutar(() => ApiClient.delete('/admin/vendedores/$id'));
+
+Future<void> eliminarEmpresa(String id) =>
+    _ejecutar(() => ApiClient.delete('/admin/empresas/$id'));
+
+Future<void> eliminarCliente(String id) =>
+    _ejecutar(() => ApiClient.delete('/clientes/$id'));
+//-----------
   Future<void> crearVendedor(Map<String, dynamic> datos) =>
       _ejecutar(() => ApiClient.post('/admin/vendedores', data: datos));
 

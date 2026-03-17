@@ -10,7 +10,7 @@ class ApiClient {
   // Cuando tengas la app en celular real, cambia por
   // la IP local de tu PC: ej. http://192.168.1.x:8000
   
-  //static const _baseUrl = 'https://3143-2800-bf0-806e-fff-c07d-6aa8-9577-159e.ngrok-free.app';
+  //static const _baseUrl = 'https://empanatrack-backend-production.up.railway.app';
 
   static final Dio _dio = Dio(
     BaseOptions(

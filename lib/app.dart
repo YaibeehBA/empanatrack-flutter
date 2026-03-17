@@ -1,5 +1,6 @@
 import 'features/admin/screens/admin_dashboard_screen.dart';
 import 'features/admin/screens/reportes_admin_screen.dart';
+import 'features/admin/screens/rutas_screen.dart';
 import 'features/admin/screens/vendedores_screen.dart';
 import 'features/admin/screens/empresas_screen.dart';
 import 'features/admin/screens/productos_screen.dart';
@@ -73,6 +74,10 @@ class EmpanaTrackApp extends ConsumerWidget {
         GoRoute(
           path:    '/admin/productos',
           builder: (ctx, state) => const ProductosScreen(),
+        ),
+        GoRoute(
+          path:    '/admin/rutas',
+          builder: (context, state) => const RutasAdminScreen(),
         ),
         GoRoute(
           path:    '/admin/reportes',

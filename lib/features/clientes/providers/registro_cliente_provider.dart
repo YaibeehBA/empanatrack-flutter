@@ -86,3 +86,15 @@ final empresasProvider = FutureProvider<List<EmpresaModel>>((ref) async {
   final lista    = response.data as List;
   return lista.map((e) => EmpresaModel.fromJson(e)).toList();
 });
+
+// Verificar cédula disponible (para admin/vendedor — con auth)
+final cedulaDisponibleAdminProvider =
+    FutureProvider.family<bool, String>((ref, cedula) async {
+  if (cedula.length != 10) return true;
+  try {
+    final r = await ApiClient.get('/clientes/verificar-cedula/$cedula');
+    return r.data['disponible'] as bool;
+  } catch (_) {
+    return true;
+  }
+});

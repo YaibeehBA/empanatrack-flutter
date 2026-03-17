@@ -130,7 +130,7 @@ class _RegistroClienteScreenState
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 250),
                 child: _paso == 1
-                    ? _Paso1DatosBasicos(
+                    ? _Paso1DatosBasicosState(
                         key:          const ValueKey(1),
                         formKey:      _formKeyPaso1,
                         cedulaCtrl:   _cedulaCtrl,
@@ -238,14 +238,14 @@ class _IndicadorPasos extends StatelessWidget {
 //  PASO 1 — cada campo valida solo cuando el usuario
 //  interactúa CON ÉL, no con otros campos
 // ══════════════════════════════════════════════════════════
-class _Paso1DatosBasicos extends StatefulWidget {
+class _Paso1DatosBasicosState extends ConsumerStatefulWidget {
   final GlobalKey<FormState>  formKey;
   final TextEditingController cedulaCtrl;
   final TextEditingController nombreCtrl;
   final TextEditingController correoCtrl;
   final TextEditingController telefonoCtrl;
 
-  const _Paso1DatosBasicos({
+  const _Paso1DatosBasicosState({
     super.key,
     required this.formKey,
     required this.cedulaCtrl,
@@ -255,31 +255,73 @@ class _Paso1DatosBasicos extends StatefulWidget {
   });
 
   @override
-  State<_Paso1DatosBasicos> createState() => _Paso1DatosBasicosState();
+  ConsumerState<_Paso1DatosBasicosState> createState() =>
+      _Paso1DatosBasicosStateImpl();
 }
 
-class _Paso1DatosBasicosState extends State<_Paso1DatosBasicos> {
-  // null = intacto | true = válido | false = inválido
-  bool? _cedulaOk;
-  bool? _telefonoOk;
+class _Paso1DatosBasicosStateImpl
+    extends ConsumerState<_Paso1DatosBasicosState> {
+  bool?   _cedulaOk;
+  bool?   _telefonoOk;
+  bool    _nombreTocado  = false;
+  bool    _verificandoCedula = false;
+  bool?   _cedulaDisponible;
+  String? _cedulaError;
 
-  // El nombre solo muestra error si fue tocado y está vacío
-  bool  _nombreTocado = false;
-
-  void _onCedulaChange(String v) {
+  // ── Cédula: valida formato + verifica en backend ──────
+  Future<void> _onCedulaChange(String v) async {
     if (v.isEmpty) {
-      setState(() => _cedulaOk = null);
+      setState(() {
+        _cedulaOk         = null;
+        _cedulaDisponible = null;
+        _cedulaError      = null;
+      });
       return;
     }
-    setState(() => _cedulaOk = Validators.cedulaEcuador(v) == null);
+
+    final errorFormato = Validators.cedulaEcuador(v);
+    if (errorFormato != null) {
+      setState(() {
+        _cedulaOk         = false;
+        _cedulaDisponible = null;
+        _cedulaError      = errorFormato;
+      });
+      return;
+    }
+
+    // Formato válido — verificar en backend
+    setState(() {
+      _cedulaOk            = null;
+      _verificandoCedula   = true;
+      _cedulaDisponible    = null;
+      _cedulaError         = null;
+    });
+
+    try {
+      final disponible = await ref.read(
+          cedulaDisponibleAdminProvider(v).future);
+      if (!mounted) return;
+      setState(() {
+        _verificandoCedula = false;
+        _cedulaDisponible  = disponible;
+        _cedulaOk          = disponible;
+        _cedulaError       = disponible
+            ? null : 'Esta cédula ya está registrada';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _verificandoCedula = false;
+        _cedulaOk          = true; // si falla la red no bloqueamos
+        _cedulaDisponible  = true;
+      });
+    }
   }
 
   void _onTelefonoChange(String v) {
-    if (v.isEmpty) {
-      setState(() => _telefonoOk = null);
-      return;
-    }
-    setState(() => _telefonoOk = Validators.telefonoEcuador(v) == null);
+    if (v.isEmpty) { setState(() => _telefonoOk = null); return; }
+    setState(() =>
+        _telefonoOk = Validators.telefonoEcuador(v) == null);
   }
 
   Color _borderColor(bool? ok) {
@@ -297,8 +339,7 @@ class _Paso1DatosBasicosState extends State<_Paso1DatosBasicos> {
   @override
   Widget build(BuildContext context) {
     return Form(
-      key: widget.formKey,
-      // ⚠️ disabled — cada campo controla su propia validación visual
+      key:              widget.formKey,
       autovalidateMode: AutovalidateMode.disabled,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -321,29 +362,45 @@ class _Paso1DatosBasicosState extends State<_Paso1DatosBasicos> {
               labelText:   'Cédula *',
               prefixIcon:  const Icon(Icons.badge_outlined),
               counterText: '',
-              suffixIcon: _cedulaOk == null
-                  ? null
-                  : Icon(
-                      _cedulaOk!
-                          ? Icons.check_circle_rounded
-                          : Icons.cancel_rounded,
-                      color: _cedulaOk!
-                          ? AppColores.success
-                          : AppColores.danger,
-                    ),
+              suffixIcon: _verificandoCedula
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(width: 20, height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2)),
+                    )
+                  : _cedulaOk == null
+                      ? null
+                      : Icon(
+                          _cedulaOk!
+                              ? Icons.check_circle_rounded
+                              : Icons.cancel_rounded,
+                          color: _cedulaOk!
+                              ? AppColores.success
+                              : AppColores.danger,
+                        ),
+              errorText: _cedulaError,
               filled:    true,
-              fillColor: _fillColor(_cedulaOk),
+              fillColor: _verificandoCedula
+                  ? AppColores.accent.withOpacity(0.03)
+                  : _fillColor(_cedulaOk),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                    color: _borderColor(_cedulaOk), width: 2),
+                  color: _verificandoCedula
+                      ? AppColores.accent
+                      : _borderColor(_cedulaOk),
+                  width: 2,
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                  color: _cedulaOk == null
-                      ? AppColores.primary
-                      : _borderColor(_cedulaOk),
+                  color: _verificandoCedula
+                      ? AppColores.accent
+                      : _cedulaOk == null
+                          ? AppColores.primary
+                          : _borderColor(_cedulaOk),
                   width: 2,
                 ),
               ),
@@ -358,29 +415,50 @@ class _Paso1DatosBasicosState extends State<_Paso1DatosBasicos> {
                     color: AppColores.danger, width: 2),
               ),
             ),
-            // El validator solo corre cuando el Form hace validate()
-            // es decir al pulsar "Siguiente"
-            validator: Validators.cedulaEcuador,
+            validator: (_) {
+              if (_cedulaError != null) return _cedulaError;
+              if (_cedulaDisponible == false) {
+                return 'Esta cédula ya está registrada';
+              }
+              if (_cedulaOk != true) return 'Ingresa una cédula válida';
+              return null;
+            },
           ),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 200),
-            child: _cedulaOk == true
+            child: _verificandoCedula
                 ? Padding(
-                    key: const ValueKey('c-ok'),
+                    key: const ValueKey('c-checking'),
                     padding: const EdgeInsets.only(top: 6, left: 12),
                     child: Row(children: const [
-                      Icon(Icons.check_circle_outline,
-                          size: 14, color: AppColores.success),
-                      SizedBox(width: 4),
-                      Text('Cédula válida ✓',
+                      SizedBox(width: 12, height: 12,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 1.5)),
+                      SizedBox(width: 6),
+                      Text('Verificando cédula...',
                           style: TextStyle(
-                            fontSize:   12,
-                            color:      AppColores.success,
-                            fontWeight: FontWeight.w600,
-                          )),
+                              fontSize: 12,
+                              color: AppColores.accent)),
                     ]),
                   )
-                : const SizedBox.shrink(key: ValueKey('c-no')),
+                : _cedulaOk == true
+                    ? Padding(
+                        key: const ValueKey('c-ok'),
+                        padding:
+                            const EdgeInsets.only(top: 6, left: 12),
+                        child: Row(children: const [
+                          Icon(Icons.check_circle_outline,
+                              size: 14, color: AppColores.success),
+                          SizedBox(width: 4),
+                          Text('Cédula válida y disponible ✓',
+                              style: TextStyle(
+                                fontSize:   12,
+                                color:      AppColores.success,
+                                fontWeight: FontWeight.w600,
+                              )),
+                        ]),
+                      )
+                    : const SizedBox.shrink(key: ValueKey('c-no')),
           ),
           const SizedBox(height: 14),
 
@@ -388,11 +466,9 @@ class _Paso1DatosBasicosState extends State<_Paso1DatosBasicos> {
           TextFormField(
             controller:   widget.nombreCtrl,
             keyboardType: TextInputType.name,
-            // Solo activa el error de este campo cuando el usuario
-            // lo toca y lo deja vacío
             onChanged: (_) {
               if (!_nombreTocado) return;
-              setState(() {});   // redibuja para mostrar/ocultar error
+              setState(() {});
             },
             onTap: () => setState(() => _nombreTocado = true),
             decoration: InputDecoration(
@@ -464,7 +540,8 @@ class _Paso1DatosBasicosState extends State<_Paso1DatosBasicos> {
             child: _telefonoOk == true
                 ? Padding(
                     key: const ValueKey('t-ok'),
-                    padding: const EdgeInsets.only(top: 6, left: 12),
+                    padding:
+                        const EdgeInsets.only(top: 6, left: 12),
                     child: Row(children: const [
                       Icon(Icons.check_circle_outline,
                           size: 14, color: AppColores.success),
@@ -495,8 +572,8 @@ class _Paso1DatosBasicosState extends State<_Paso1DatosBasicos> {
             ),
             validator: (v) {
               if (v == null || v.trim().isEmpty) return null;
-              final regex = RegExp(r'^[\w\.-]+@[\w\.-]+\.\w+$');
-              if (!regex.hasMatch(v.trim())) {
+              if (!RegExp(r'^[\w\.-]+@[\w\.-]+\.\w+$')
+                  .hasMatch(v.trim())) {
                 return 'Ingresa un correo válido';
               }
               return null;

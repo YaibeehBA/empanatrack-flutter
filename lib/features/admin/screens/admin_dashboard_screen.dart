@@ -118,6 +118,13 @@ class AdminDashboardScreen extends ConsumerWidget {
               color:    AppColores.success,
               onTap:    () => context.push('/admin/productos'),
             ),
+            _MenuCard(
+              icono:    '🗺️',
+              titulo:   'Rutas',
+              subtitulo: 'Crear y asignar rutas de entrega',
+              color:    AppColores.primary,
+              onTap:    () => context.push('/admin/rutas'),
+            ),
 
             const SizedBox(height: 28),
 
