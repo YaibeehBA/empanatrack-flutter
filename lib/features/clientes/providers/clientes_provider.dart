@@ -4,10 +4,10 @@ import '../../../shared/models/cliente_model.dart';
 
 final clientesProvider = FutureProvider<List<ClienteModel>>((ref) async {
   final response = await ApiClient.get('/clientes/');
-  final lista    = response.data as List;
+  // El backend ahora devuelve {"clientes": [...], ...}
+  final lista = response.data['clientes'] as List;
   return lista.map((c) => ClienteModel.fromJson(c)).toList();
 });
-
 // ══════════════════════════════════════════════════════════
 //  PROVIDER PAGINADO
 // ══════════════════════════════════════════════════════════

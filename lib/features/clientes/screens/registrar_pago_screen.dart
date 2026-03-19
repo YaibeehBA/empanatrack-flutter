@@ -74,6 +74,7 @@ class _RegistrarPagoScreenState extends ConsumerState<RegistrarPagoScreen> {
   if (next.exitoso) {
     // Invalidar TODOS los providers de datos
     ref.invalidate(clientesProvider);
+    ref.read(clientesPaginadosProvider.notifier).cargarPrimera();
     ref.invalidate(historialProvider(widget.clienteId));
     ref.invalidate(ventasHoyProvider);
 

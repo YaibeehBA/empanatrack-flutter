@@ -47,6 +47,7 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
         ref.invalidate(resumenDiaProvider('semana'));
         ref.invalidate(resumenDiaProvider('mes'));
         ref.invalidate(clientesProvider);
+        ref.read(clientesPaginadosProvider.notifier).cargarPrimera();
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

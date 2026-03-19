@@ -1,11 +1,9 @@
-import 'dart:convert';
-import 'dart:math';
+
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:http/http.dart' as http;
 import '../../../core/constants/colores.dart';
 import '../providers/rutas_admin_provider.dart';
 import '../providers/admin_provider.dart';
@@ -20,6 +18,7 @@ const _colorFin    = Color(0xFFD32F2F); // Rojo
 // ══════════════════════════════════════════════════════════
 //  MODELO PARADA
 // ══════════════════════════════════════════════════════════
+// ignore: unused_element
 class _Parada {
   final EmpresaRuta empresa;
   final double      distanciaDesdeAnterior;
