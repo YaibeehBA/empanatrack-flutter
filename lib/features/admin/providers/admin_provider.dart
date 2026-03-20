@@ -180,6 +180,23 @@ class AdminOpNotifier extends StateNotifier<AdminOpState> {
       state = state.copyWith(cargando: false, error: msg);
     }
   }
+  Future<Map<String, dynamic>?> parsearUrlMaps(String url) async {
+  state = state.copyWith(cargando: true);
+  try {
+    final r = await ApiClient.post(
+      '/admin/empresas/parsear-url-maps',
+      data: {'url': url},
+    );
+    state = state.copyWith(cargando: false);
+    return r.data['data'] as Map<String, dynamic>;
+  } catch (e) {
+    String msg = 'No se pudo extraer coordenadas.';
+    final match = RegExp(r'"detail":"([^"]+)"').firstMatch(e.toString());
+    if (match != null) msg = match.group(1)!;
+    state = state.copyWith(cargando: false, error: msg);
+    return null;
+  }
+}
 
   Future<void> editarProducto(String id, Map<String, dynamic> datos) =>
       _ejecutar(() => ApiClient.put('/admin/productos/$id', data: datos));
