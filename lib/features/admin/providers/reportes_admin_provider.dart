@@ -11,6 +11,13 @@ class ResumenGeneral {
   final double totalContado;
   final double totalFiado;
   final double totalCobrado;
+  // Pedidos — NUEVO
+  final int    totalPedidos;
+  final double totalPedidosMonto;
+  final double pedidosContraentrega;
+  final double pedidosTransferencia;
+  final double dineroEnCaja;
+  // Deudas
   final double totalDeudas;
   final int    clientesConDeuda;
 
@@ -21,20 +28,31 @@ class ResumenGeneral {
     required this.totalContado,
     required this.totalFiado,
     required this.totalCobrado,
+    required this.totalPedidos,
+    required this.totalPedidosMonto,
+    required this.pedidosContraentrega,
+    required this.pedidosTransferencia,
+    required this.dineroEnCaja,
     required this.totalDeudas,
     required this.clientesConDeuda,
   });
 
-  factory ResumenGeneral.fromJson(Map<String, dynamic> j) => ResumenGeneral(
-    periodo:          j['periodo'],
-    totalVentas:      j['total_ventas'],
-    totalVendido:     (j['total_vendido']  as num).toDouble(),
-    totalContado:     (j['total_contado']  as num).toDouble(),
-    totalFiado:       (j['total_fiado']    as num).toDouble(),
-    totalCobrado:     (j['total_cobrado']  as num).toDouble(),
-    totalDeudas:      (j['total_deudas']   as num).toDouble(),
-    clientesConDeuda: j['clientes_con_deuda'],
-  );
+  factory ResumenGeneral.fromJson(Map<String, dynamic> j) =>
+      ResumenGeneral(
+        periodo:             j['periodo'] ?? 'hoy',
+        totalVentas:         (j['total_ventas']          as num).toInt(),
+        totalVendido:        (j['total_vendido']          as num).toDouble(),
+        totalContado:        (j['total_contado']          as num).toDouble(),
+        totalFiado:          (j['total_fiado']            as num).toDouble(),
+        totalCobrado:        (j['total_cobrado']          as num).toDouble(),
+        totalPedidos:        (j['total_pedidos']          as num).toInt(),
+        totalPedidosMonto:   (j['total_pedidos_monto']    as num).toDouble(),
+        pedidosContraentrega:(j['pedidos_contraentrega']  as num).toDouble(),
+        pedidosTransferencia:(j['pedidos_transferencia']  as num).toDouble(),
+        dineroEnCaja:        (j['dinero_en_caja']         as num).toDouble(),
+        totalDeudas:         (j['total_deudas']           as num).toDouble(),
+        clientesConDeuda:    (j['clientes_con_deuda']     as num).toInt(),
+      );
 }
 
 class VentaVendedor {
@@ -45,6 +63,11 @@ class VentaVendedor {
   final double totalContado;
   final double totalFiado;
   final double totalCobrado;
+  // Pedidos — NUEVO
+  final int    totalPedidos;
+  final double totalPedidosMonto;
+  final double pedidosContraentrega;
+  final double dineroEnMano;
 
   const VentaVendedor({
     required this.vendedorId,
@@ -54,17 +77,26 @@ class VentaVendedor {
     required this.totalContado,
     required this.totalFiado,
     required this.totalCobrado,
+    required this.totalPedidos,
+    required this.totalPedidosMonto,
+    required this.pedidosContraentrega,
+    required this.dineroEnMano,
   });
 
-  factory VentaVendedor.fromJson(Map<String, dynamic> j) => VentaVendedor(
-    vendedorId:   j['vendedor_id'],
-    nombre:       j['nombre'],
-    totalVentas:  j['total_ventas'],
-    totalVendido: (j['total_vendido'] as num).toDouble(),
-    totalContado: (j['total_contado'] as num).toDouble(),
-    totalFiado:   (j['total_fiado']   as num).toDouble(),
-    totalCobrado: (j['total_cobrado'] as num).toDouble(),
-  );
+  factory VentaVendedor.fromJson(Map<String, dynamic> j) =>
+      VentaVendedor(
+        vendedorId:          j['vendedor_id'],
+        nombre:              j['nombre'],
+        totalVentas:         (j['total_ventas']          as num).toInt(),
+        totalVendido:        (j['total_vendido']          as num).toDouble(),
+        totalContado:        (j['total_contado']          as num).toDouble(),
+        totalFiado:          (j['total_fiado']            as num).toDouble(),
+        totalCobrado:        (j['total_cobrado']          as num).toDouble(),
+        totalPedidos:        (j['total_pedidos']          as num).toInt(),
+        totalPedidosMonto:   (j['total_pedidos_monto']    as num).toDouble(),
+        pedidosContraentrega:(j['pedidos_contraentrega']  as num).toDouble(),
+        dineroEnMano:        (j['dinero_en_mano']         as num).toDouble(),
+      );
 }
 
 class ProductoVendido {

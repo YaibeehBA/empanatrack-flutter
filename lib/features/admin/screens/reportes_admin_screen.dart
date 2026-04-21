@@ -21,15 +21,15 @@ class ReportesAdminScreen extends ConsumerWidget {
           title: const Text('Reportes',
               style: TextStyle(fontWeight: FontWeight.bold)),
           bottom: const TabBar(
-            indicatorColor:   Colors.white,
-            labelColor:       Colors.white,
+            indicatorColor:       Colors.white,
+            labelColor:           Colors.white,
             unselectedLabelColor: Colors.white60,
-            isScrollable:     true,
-            tabAlignment:     TabAlignment.start,
+            isScrollable:         true,
+            tabAlignment:         TabAlignment.start,
             tabs: [
-              Tab(icon: Icon(Icons.bar_chart),      text: 'Resumen'),
-              Tab(icon: Icon(Icons.people_outline),  text: 'Vendedores'),
-              Tab(icon: Icon(Icons.fastfood_outlined),text: 'Productos'),
+              Tab(icon: Icon(Icons.bar_chart),       text: 'Resumen'),
+              Tab(icon: Icon(Icons.people_outline),   text: 'Vendedores'),
+              Tab(icon: Icon(Icons.fastfood_outlined), text: 'Productos'),
               Tab(icon: Icon(Icons.account_balance_wallet_outlined),
                   text: 'Deudas'),
             ],
@@ -37,9 +37,7 @@ class ReportesAdminScreen extends ConsumerWidget {
         ),
         body: Column(
           children: [
-            // ── Selector de periodo ───────────────────────
             _SelectorPeriodo(),
-            // ── Tabs ─────────────────────────────────────
             const Expanded(
               child: TabBarView(
                 children: [
@@ -82,7 +80,6 @@ class _SelectorPeriodo extends ConsumerWidget {
             child: GestureDetector(
               onTap: () {
                 ref.read(_periodoProvider.notifier).state = op.$1;
-                // Invalidar providers para recargar con nuevo periodo
                 ref.invalidate(resumenGeneralProvider);
                 ref.invalidate(ventasPorVendedorProvider);
                 ref.invalidate(productosMasVendidosProvider);
@@ -131,22 +128,22 @@ class _TabResumen extends ConsumerWidget {
       error:   (e, _) => _ErrorBox(onRetry: () =>
           ref.invalidate(resumenGeneralProvider)),
       data: (r) => RefreshIndicator(
-        onRefresh: () async =>
-            ref.invalidate(resumenGeneralProvider),
+        onRefresh: () async => ref.invalidate(resumenGeneralProvider),
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Card principal — dinero en mano
+
+            // ── Card dinero en caja ─────────────────────
             _CardDestacada(
-              titulo: 'Total vendido',
-              valor:  r.totalVendido,
+              titulo: 'Dinero en caja',
+              valor:  r.dineroEnCaja,
               icono:  '💰',
               color:  AppColores.primary,
-              sub:    '${r.totalVentas} ventas en el periodo',
+              sub:    'Contado + cobros + pedidos contraentrega',
             ),
             const SizedBox(height: 12),
 
-            // Grid de 2 columnas
+            // ── Grid ventas ─────────────────────────────
             GridView.count(
               crossAxisCount:   2,
               crossAxisSpacing: 10,
@@ -155,39 +152,59 @@ class _TabResumen extends ConsumerWidget {
               childAspectRatio: 1.4,
               physics: const NeverScrollableScrollPhysics(),
               children: [
-                _MiniCard(
-                  icono:  '🧾',
-                  titulo: 'Contado',
-                  valor:  r.totalContado,
-                  color:  AppColores.success,
-                ),
-                _MiniCard(
-                  icono:  '📋',
-                  titulo: 'Fiado',
-                  valor:  r.totalFiado,
-                  color:  AppColores.warning,
-                ),
-                _MiniCard(
-                  icono:  '✅',
-                  titulo: 'Cobrado',
-                  valor:  r.totalCobrado,
-                  color:  AppColores.accent,
-                ),
-                _MiniCard(
-                  icono:  '⚠️',
-                  titulo: 'Total deudas',
-                  valor:  r.totalDeudas,
-                  color:  AppColores.danger,
-                ),
+                _MiniCard(icono: '📦', titulo: 'Total vendido',
+                    valor: r.totalVendido, color: AppColores.primary),
+                _MiniCard(icono: '💵', titulo: 'Contado',
+                    valor: r.totalContado, color: AppColores.success),
+                _MiniCard(icono: '🧾', titulo: 'Fiado',
+                    valor: r.totalFiado,   color: AppColores.warning),
+                _MiniCard(icono: '🤝', titulo: 'Cobros',
+                    valor: r.totalCobrado, color: AppColores.accent),
               ],
             ),
             const SizedBox(height: 12),
 
-            // Clientes con deuda
+            // ── Pedidos ─────────────────────────────────
+            if (r.totalPedidos > 0) ...[
+              _SecLabel('🛵  PEDIDOS ENTREGADOS'),
+              const SizedBox(height: 10),
+              GridView.count(
+                crossAxisCount:   2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing:  10,
+                shrinkWrap:       true,
+                childAspectRatio: 1.4,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  _MiniCard(icono: '🛵', titulo: 'Pedidos',
+                      valor: r.totalPedidosMonto,
+                      color: AppColores.primary),
+                  _MiniCard(icono: '🚚', titulo: 'Contraentrega',
+                      valor: r.pedidosContraentrega,
+                      color: AppColores.success),
+                  _MiniCard(icono: '🏦', titulo: 'Transferencia',
+                      valor: r.pedidosTransferencia,
+                      color: AppColores.textSecond),
+                  _MiniCard(icono: '📊', titulo: 'Total pedidos',
+                      valor: r.totalPedidosMonto,
+                      color: AppColores.accent),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // ── Deudas ──────────────────────────────────
+            _FilaInfo(
+              icono:  Icons.warning_amber_rounded,
+              color:  AppColores.danger,
+              titulo: 'Total en deudas',
+              valor:  '\$${r.totalDeudas.toStringAsFixed(2)}',
+            ),
+            const SizedBox(height: 8),
             _FilaInfo(
               icono:  Icons.people_outline,
               color:  AppColores.danger,
-              titulo: 'Clientes con deuda pendiente',
+              titulo: 'Clientes con deuda',
               valor:  '${r.clientesConDeuda}',
             ),
           ],
@@ -218,18 +235,14 @@ class _TabVendedores extends ConsumerWidget {
               onRefresh: () async =>
                   ref.invalidate(ventasPorVendedorProvider),
               child: ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount:   lista.length,
-                separatorBuilder: (_, __) =>
-                    const SizedBox(height: 10),
-                itemBuilder: (_, i) {
-                  final v = lista[i];
-                  return _CardVendedor(
-                    vendedor: v,
-                    posicion: i + 1,
-                    maxVendido: lista.first.totalVendido,
-                  );
-                },
+                padding:          const EdgeInsets.all(16),
+                itemCount:        lista.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (_, i) => _CardVendedor(
+                  vendedor:   lista[i],
+                  posicion:   i + 1,
+                  maxVendido: lista.first.totalVendido,
+                ),
               ),
             ),
     );
@@ -256,73 +269,61 @@ class _CardVendedor extends StatelessWidget {
       decoration: BoxDecoration(
         color:        Colors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05),
-              blurRadius: 8, offset: const Offset(0, 2)),
-        ],
+        boxShadow: [BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              // Posición / medalla
-              Container(
-                width: 36, height: 36,
-                decoration: BoxDecoration(
-                  color: posicion == 1
-                      ? const Color(0xFFFFF0C0)
-                      : posicion == 2
-                          ? const Color(0xFFF0F0F0)
-                          : AppColores.background,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Center(
-                  child: Text(
-                    posicion == 1 ? '🥇'
-                        : posicion == 2 ? '🥈'
-                        : posicion == 3 ? '🥉' : '$posicion',
-                    style: const TextStyle(fontSize: 18),
-                  ),
-                ),
+          Row(children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: posicion == 1
+                    ? const Color(0xFFFFF0C0)
+                    : posicion == 2
+                        ? const Color(0xFFF0F0F0)
+                        : AppColores.background,
+                borderRadius: BorderRadius.circular(10),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(vendedor.nombre,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize:   15,
-                          color:      AppColores.textPrimary,
-                        )),
-                    Text('${vendedor.totalVentas} ventas',
-                        style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColores.textSecond)),
-                  ],
-                ),
-              ),
-              Text(
-                '\$${vendedor.totalVendido.toStringAsFixed(2)}',
+              child: Center(child: Text(
+                posicion == 1 ? '🥇'
+                    : posicion == 2 ? '🥈'
+                    : posicion == 3 ? '🥉' : '$posicion',
+                style: const TextStyle(fontSize: 18),
+              )),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(vendedor.nombre,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize:   15,
+                        color:      AppColores.textPrimary)),
+                Text('${vendedor.totalVentas} ventas',
+                    style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColores.textSecond)),
+              ],
+            )),
+            Text('\$${vendedor.totalVendido.toStringAsFixed(2)}',
                 style: const TextStyle(
-                  fontSize:   18,
-                  fontWeight: FontWeight.bold,
-                  color:      AppColores.primary,
-                ),
-              ),
-            ],
-          ),
+                    fontSize:   18,
+                    fontWeight: FontWeight.bold,
+                    color:      AppColores.primary)),
+          ]),
           const SizedBox(height: 10),
 
           // Barra de progreso
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value:            pct,
-              minHeight:        6,
-              backgroundColor:  Colors.grey.shade100,
+              value:           pct,
+              minHeight:       6,
+              backgroundColor: Colors.grey.shade100,
               valueColor: const AlwaysStoppedAnimation<Color>(
                   AppColores.primary),
             ),
@@ -330,24 +331,47 @@ class _CardVendedor extends StatelessWidget {
           const SizedBox(height: 10),
 
           // Fila contado / fiado / cobrado
-          Row(
-            children: [
-              _ChipInfo(
-                  label: 'Contado',
-                  valor: vendedor.totalContado,
-                  color: AppColores.success),
-              const SizedBox(width: 8),
-              _ChipInfo(
-                  label: 'Fiado',
-                  valor: vendedor.totalFiado,
-                  color: AppColores.warning),
-              const SizedBox(width: 8),
-              _ChipInfo(
-                  label: 'Cobrado',
-                  valor: vendedor.totalCobrado,
-                  color: AppColores.accent),
-            ],
-          ),
+          Row(children: [
+            _ChipInfo(label: 'Contado',
+                valor: vendedor.totalContado, color: AppColores.success),
+            const SizedBox(width: 6),
+            _ChipInfo(label: 'Fiado',
+                valor: vendedor.totalFiado, color: AppColores.warning),
+            const SizedBox(width: 6),
+            _ChipInfo(label: 'Cobrado',
+                valor: vendedor.totalCobrado, color: AppColores.accent),
+          ]),
+
+          // Pedidos — solo si tiene
+          if (vendedor.totalPedidos > 0) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              _ChipInfo(label: '🛵 Pedidos',
+                  valor: vendedor.totalPedidosMonto,
+                  color: AppColores.primary),
+              const SizedBox(width: 6),
+              Expanded(child: Container(
+                padding: const EdgeInsets.symmetric(
+                    vertical: 6, horizontal: 8),
+                decoration: BoxDecoration(
+                  color:        AppColores.primary.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(children: [
+                  const Text('💰 En mano',
+                      style: TextStyle(
+                          fontSize: 10, color: AppColores.primary)),
+                  Text(
+                    '\$${vendedor.dineroEnMano.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                        fontSize:   12,
+                        fontWeight: FontWeight.bold,
+                        color:      AppColores.primary),
+                  ),
+                ]),
+              )),
+            ]),
+          ],
         ],
       ),
     );
@@ -381,10 +405,9 @@ class _TabProductos extends ConsumerWidget {
           onRefresh: () async =>
               ref.invalidate(productosMasVendidosProvider),
           child: ListView.separated(
-            padding:      const EdgeInsets.all(16),
-            itemCount:    conVentas.length,
-            separatorBuilder: (_, __) =>
-                const SizedBox(height: 10),
+            padding:          const EdgeInsets.all(16),
+            itemCount:        conVentas.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (_, i) => _CardProducto(
               producto:    conVentas[i],
               posicion:    i + 1,
@@ -417,67 +440,58 @@ class _CardProducto extends StatelessWidget {
       decoration: BoxDecoration(
         color:        Colors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05),
-              blurRadius: 8, offset: const Offset(0, 2)),
-        ],
+        boxShadow: [BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 42, height: 42,
-                decoration: BoxDecoration(
-                  color:        AppColores.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Center(
-                  child: Text(
-                    posicion <= 3 ? ['🥇','🥈','🥉'][posicion-1]
-                        : '🫓',
-                    style: const TextStyle(fontSize: 20),
-                  ),
-                ),
+          Row(children: [
+            Container(
+              width: 42, height: 42,
+              decoration: BoxDecoration(
+                color:        AppColores.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(producto.nombre,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize:   15,
-                          color:      AppColores.textPrimary,
-                        )),
-                    Text(
-                      '\$${producto.precioUnitario.toStringAsFixed(2)} c/u',
-                      style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColores.textSecond),
-                    ),
-                  ],
+              child: Center(child: Text(
+                posicion <= 3
+                    ? ['🥇','🥈','🥉'][posicion - 1]
+                    : '🫓',
+                style: const TextStyle(fontSize: 20),
+              )),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(producto.nombre,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize:   15,
+                        color:      AppColores.textPrimary)),
+                Text(
+                  '\$${producto.precioUnitario.toStringAsFixed(2)} c/u',
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColores.textSecond),
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('${producto.totalCantidad}',
-                      style: const TextStyle(
+              ],
+            )),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('${producto.totalCantidad}',
+                    style: const TextStyle(
                         fontSize:   22,
                         fontWeight: FontWeight.bold,
-                        color:      AppColores.primary,
-                      )),
-                  const Text('unidades',
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: AppColores.textSecond)),
-                ],
-              ),
-            ],
-          ),
+                        color:      AppColores.primary)),
+                const Text('unidades',
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: AppColores.textSecond)),
+              ],
+            ),
+          ]),
           const SizedBox(height: 10),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
@@ -495,10 +509,9 @@ class _CardProducto extends StatelessWidget {
             child: Text(
               'Ingresos: \$${producto.totalIngresos.toStringAsFixed(2)}',
               style: const TextStyle(
-                fontSize:   13,
-                fontWeight: FontWeight.w600,
-                color:      AppColores.success,
-              ),
+                  fontSize:   13,
+                  fontWeight: FontWeight.w600,
+                  color:      AppColores.success),
             ),
           ),
         ],
@@ -526,74 +539,62 @@ class _TabDeudas extends ConsumerWidget {
           : RefreshIndicator(
               onRefresh: () async =>
                   ref.invalidate(deudasClientesProvider),
-              child: Column(
-                children: [
-                  // Total deudas
-                  Container(
-                    width:   double.infinity,
-                    margin:  const EdgeInsets.all(16),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color:        AppColores.danger.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                          color: AppColores.danger.withOpacity(0.2)),
-                    ),
-                    child: Row(
+              child: Column(children: [
+                Container(
+                  width:   double.infinity,
+                  margin:  const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color:        AppColores.danger.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                        color: AppColores.danger.withOpacity(0.2)),
+                  ),
+                  child: Row(children: [
+                    const Text('⚠️',
+                        style: TextStyle(fontSize: 28)),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('⚠️',
-                            style: TextStyle(fontSize: 28)),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Total en deudas',
-                                style: TextStyle(
-                                  color:    AppColores.danger,
-                                  fontSize: 12,
-                                )),
-                            Text(
-                              '\$${lista.fold(0.0, (s, d) => s + d.saldoActual).toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontSize:   24,
-                                fontWeight: FontWeight.bold,
-                                color:      AppColores.danger,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Spacer(),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text('${lista.length}',
-                                style: const TextStyle(
-                                  fontSize:   20,
-                                  fontWeight: FontWeight.bold,
-                                  color:      AppColores.danger,
-                                )),
-                            const Text('clientes',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color:    AppColores.danger,
-                                )),
-                          ],
+                        const Text('Total en deudas',
+                            style: TextStyle(
+                                color:    AppColores.danger,
+                                fontSize: 12)),
+                        Text(
+                          '\$${lista.fold(0.0, (s, d) => s + d.saldoActual).toStringAsFixed(2)}',
+                          style: const TextStyle(
+                              fontSize:   24,
+                              fontWeight: FontWeight.bold,
+                              color:      AppColores.danger),
                         ),
                       ],
                     ),
-                  ),
-                  Expanded(
-                    child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      itemCount:    lista.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 8),
-                      itemBuilder: (_, i) =>
-                          _CardDeuda(deuda: lista[i], posicion: i + 1),
+                    const Spacer(),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('${lista.length}',
+                            style: const TextStyle(
+                                fontSize:   20,
+                                fontWeight: FontWeight.bold,
+                                color:      AppColores.danger)),
+                        const Text('clientes',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color:    AppColores.danger)),
+                      ],
                     ),
-                  ),
-                ],
-              ),
+                  ]),
+                ),
+                Expanded(child: ListView.separated(
+                  padding:          const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  itemCount:        lista.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (_, i) =>
+                      _CardDeuda(deuda: lista[i], posicion: i + 1),
+                )),
+              ]),
             ),
     );
   }
@@ -611,64 +612,55 @@ class _CardDeuda extends StatelessWidget {
       decoration: BoxDecoration(
         color:        Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04),
-              blurRadius: 6, offset: const Offset(0, 2)),
-        ],
+        boxShadow: [BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6, offset: const Offset(0, 2))],
       ),
-      child: Row(
-        children: [
-          // Avatar con inicial
-          CircleAvatar(
-            radius:          22,
-            backgroundColor: AppColores.danger.withOpacity(0.12),
-            child: Text(
-              deuda.nombre.isNotEmpty
-                  ? deuda.nombre[0].toUpperCase() : '?',
-              style: const TextStyle(
+      child: Row(children: [
+        CircleAvatar(
+          radius:          22,
+          backgroundColor: AppColores.danger.withOpacity(0.12),
+          child: Text(
+            deuda.nombre.isNotEmpty
+                ? deuda.nombre[0].toUpperCase() : '?',
+            style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 color:      AppColores.danger,
-                fontSize:   18,
-              ),
-            ),
+                fontSize:   18),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(deuda.nombre,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize:   14,
-                      color:      AppColores.textPrimary,
-                    )),
-                if (deuda.empresa != null)
-                  Text(deuda.empresa!,
-                      style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColores.textSecond)),
-              ],
-            ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(deuda.nombre,
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize:   14,
+                    color:      AppColores.textPrimary)),
+            if (deuda.empresa != null)
+              Text(deuda.empresa!,
+                  style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColores.textSecond)),
+          ],
+        )),
+        Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color:        AppColores.danger.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(10),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color:        AppColores.danger.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              '\$${deuda.saldoActual.toStringAsFixed(2)}',
-              style: const TextStyle(
+          child: Text(
+            '\$${deuda.saldoActual.toStringAsFixed(2)}',
+            style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize:   15,
-                color:      AppColores.danger,
-              ),
-            ),
+                color:      AppColores.danger),
           ),
-        ],
-      ),
+        ),
+      ]),
     );
   }
 }
@@ -676,6 +668,18 @@ class _CardDeuda extends StatelessWidget {
 // ══════════════════════════════════════════════════════════
 //  WIDGETS REUTILIZABLES
 // ══════════════════════════════════════════════════════════
+class _SecLabel extends StatelessWidget {
+  final String texto;
+  const _SecLabel(this.texto);
+  @override
+  Widget build(BuildContext context) => Text(texto,
+      style: const TextStyle(
+          fontSize:      11,
+          fontWeight:    FontWeight.bold,
+          color:         AppColores.textSecond,
+          letterSpacing: 1.0));
+}
+
 class _CardDestacada extends StatelessWidget {
   final String titulo;
   final double valor;
@@ -699,36 +703,33 @@ class _CardDestacada extends StatelessWidget {
           end:    Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: color.withOpacity(0.3),
-              blurRadius: 12, offset: const Offset(0, 4)),
-        ],
+        boxShadow: [BoxShadow(
+            color:      color.withOpacity(0.3),
+            blurRadius: 12,
+            offset:     const Offset(0, 4))],
       ),
-      child: Row(
-        children: [
-          Text(icono, style: const TextStyle(fontSize: 40)),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(titulo,
-                  style: const TextStyle(
-                      color: Colors.white70, fontSize: 13)),
-              Text(
-                '\$${valor.toStringAsFixed(2)}',
+      child: Row(children: [
+        Text(icono, style: const TextStyle(fontSize: 40)),
+        const SizedBox(width: 16),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(titulo,
                 style: const TextStyle(
+                    color: Colors.white70, fontSize: 13)),
+            Text(
+              '\$${valor.toStringAsFixed(2)}',
+              style: const TextStyle(
                   color:      Colors.white,
                   fontSize:   28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(sub,
-                  style: const TextStyle(
-                      color: Colors.white70, fontSize: 11)),
-            ],
-          ),
-        ],
-      ),
+                  fontWeight: FontWeight.bold),
+            ),
+            Text(sub,
+                style: const TextStyle(
+                    color: Colors.white70, fontSize: 11)),
+          ],
+        ),
+      ]),
     );
   }
 }
@@ -750,32 +751,27 @@ class _MiniCard extends StatelessWidget {
       decoration: BoxDecoration(
         color:        Colors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05),
-              blurRadius: 8, offset: const Offset(0, 2)),
-        ],
+        boxShadow: [BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(icono, style: const TextStyle(fontSize: 18)),
-              const SizedBox(width: 6),
-              Text(titulo,
-                  style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColores.textSecond)),
-            ],
-          ),
+          Row(children: [
+            Text(icono, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: 6),
+            Text(titulo,
+                style: const TextStyle(
+                    fontSize: 11, color: AppColores.textSecond)),
+          ]),
           const Spacer(),
           Text(
             '\$${valor.toStringAsFixed(2)}',
             style: TextStyle(
-              fontSize:   17,
-              fontWeight: FontWeight.bold,
-              color:      color,
-            ),
+                fontSize:   17,
+                fontWeight: FontWeight.bold,
+                color:      color),
           ),
         ],
       ),
@@ -800,27 +796,22 @@ class _FilaInfo extends StatelessWidget {
       decoration: BoxDecoration(
         color:        Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04),
-              blurRadius: 6),
-        ],
+        boxShadow: [BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6)],
       ),
-      child: Row(
-        children: [
-          Icon(icono, color: color, size: 22),
-          const SizedBox(width: 12),
-          Expanded(child: Text(titulo,
-              style: const TextStyle(
-                  color: AppColores.textPrimary,
-                  fontSize: 14))),
-          Text(valor,
-              style: TextStyle(
+      child: Row(children: [
+        Icon(icono, color: color, size: 22),
+        const SizedBox(width: 12),
+        Expanded(child: Text(titulo,
+            style: const TextStyle(
+                color: AppColores.textPrimary, fontSize: 14))),
+        Text(valor,
+            style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize:   16,
-                color:      color,
-              )),
-        ],
-      ),
+                color:      color)),
+      ]),
     );
   }
 }
@@ -845,21 +836,17 @@ class _ChipInfo extends StatelessWidget {
           color:        color.withOpacity(0.08),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Column(
-          children: [
-            Text(label,
-                style: TextStyle(
-                    fontSize: 10, color: color)),
-            Text(
-              '\$${valor.toStringAsFixed(2)}',
-              style: TextStyle(
+        child: Column(children: [
+          Text(label,
+              style: TextStyle(fontSize: 10, color: color)),
+          Text(
+            '\$${valor.toStringAsFixed(2)}',
+            style: TextStyle(
                 fontSize:   12,
                 fontWeight: FontWeight.bold,
-                color:      color,
-              ),
-            ),
-          ],
-        ),
+                color:      color),
+          ),
+        ]),
       ),
     );
   }
@@ -871,18 +858,16 @@ class _Vacio extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text('📊', style: TextStyle(fontSize: 52)),
-          const SizedBox(height: 16),
-          Text(mensaje,
-              style: const TextStyle(
-                  color: AppColores.textSecond, fontSize: 15)),
-        ],
-      ),
-    );
+    return Center(child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Text('📊', style: TextStyle(fontSize: 52)),
+        const SizedBox(height: 16),
+        Text(mensaje,
+            style: const TextStyle(
+                color: AppColores.textSecond, fontSize: 15)),
+      ],
+    ));
   }
 }
 
@@ -892,26 +877,24 @@ class _ErrorBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text('⚠️', style: TextStyle(fontSize: 40)),
-          const SizedBox(height: 12),
-          const Text('Error al cargar datos',
-              style: TextStyle(color: AppColores.textSecond)),
-          const SizedBox(height: 12),
-          ElevatedButton.icon(
-            onPressed: onRetry,
-            icon:  const Icon(Icons.refresh),
-            label: const Text('Reintentar'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColores.primary,
-              foregroundColor: Colors.white,
-            ),
+    return Center(child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Text('⚠️', style: TextStyle(fontSize: 40)),
+        const SizedBox(height: 12),
+        const Text('Error al cargar datos',
+            style: TextStyle(color: AppColores.textSecond)),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          onPressed: onRetry,
+          icon:  const Icon(Icons.refresh),
+          label: const Text('Reintentar'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColores.primary,
+            foregroundColor: Colors.white,
           ),
-        ],
-      ),
-    );
+        ),
+      ],
+    ));
   }
 }

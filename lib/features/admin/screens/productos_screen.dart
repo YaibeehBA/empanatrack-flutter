@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../../core/constants/colores.dart';
-import '../../../core/network/api_client.dart';
 import '../../ventas/providers/productos_provider.dart';
 import '../providers/admin_provider.dart';
 import 'admin_form_widgets.dart';
@@ -302,7 +301,7 @@ class _ProductoCard extends StatelessWidget {
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: Image.network(
-                            '${ApiClient.baseUrl}${producto.imagenUrl}',
+                            producto.imagenUrl!, // ← URL absoluta de Cloudinary
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => const Center(
                               child: Text('🫓',
@@ -450,7 +449,7 @@ class _FormProductoState extends State<_FormProducto> {
 
   @override
   Widget build(BuildContext context) {
-    final esEdicion  = widget.producto != null;
+    final esEdicion   = widget.producto != null;
     final tieneImgRed = widget.producto?.imagenUrl != null &&
         widget.producto!.imagenUrl!.isNotEmpty;
 
@@ -486,7 +485,7 @@ class _FormProductoState extends State<_FormProducto> {
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(12),
                         child: Image.network(
-                          '${ApiClient.baseUrl}${widget.producto!.imagenUrl}',
+                          widget.producto!.imagenUrl!, // ← URL absoluta de Cloudinary
                           fit: BoxFit.cover,
                           width: double.infinity,
                           errorBuilder: (_, __, ___) =>

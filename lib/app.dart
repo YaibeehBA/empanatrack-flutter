@@ -1,9 +1,11 @@
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'features/admin/screens/admin_dashboard_screen.dart';
 import 'features/admin/screens/reportes_admin_screen.dart';
 import 'features/admin/screens/rutas_screen.dart';
 import 'features/admin/screens/vendedores_screen.dart';
 import 'features/admin/screens/empresas_screen.dart';
 import 'features/admin/screens/productos_screen.dart';
+import 'features/admin/screens/configuracion_admin_screen.dart';
 import 'package:empanatrack_app/features/clientes/screens/registro_cliente_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,8 +20,9 @@ import 'features/auth/screens/registro_screen.dart';
 import 'features/ventas/screens/nueva_venta_screen.dart';
 import 'features/clientes/screens/clientes_screen.dart';
 import 'features/clientes/screens/registrar_pago_screen.dart';
-import 'features/ventas/screens/vendedor_shell.dart';
+
 import 'features/clientes/screens/cliente_shell.dart';
+import 'features/ventas/shell/vendedor_shell.dart';
 
 
 class EmpanaTrackApp extends ConsumerWidget {
@@ -79,6 +82,10 @@ class EmpanaTrackApp extends ConsumerWidget {
           path:    '/admin/rutas',
           builder: (context, state) => const RutasAdminScreen(),
         ),
+                GoRoute(
+          path: '/admin/configuracion',
+          builder: (context, state) => const ConfiguracionAdminScreen(),
+        ),
         GoRoute(
           path:    '/admin/reportes',
           builder: (context, state) => const ReportesAdminScreen(),
@@ -121,6 +128,16 @@ class EmpanaTrackApp extends ConsumerWidget {
       title:         'EmpanaTrack',
       debugShowCheckedModeBanner: false,
       routerConfig:  router,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('es'),
+        Locale('en'),
+      ],
+      locale: const Locale('es'),
       theme: ThemeData(
         colorScheme:  ColorScheme.fromSeed(seedColor: AppColores.primary),
         useMaterial3: true,

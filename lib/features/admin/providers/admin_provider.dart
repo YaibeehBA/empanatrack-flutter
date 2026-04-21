@@ -38,8 +38,8 @@ class EmpresaAdmin {
   final String? direccion;
   final String? telefono;
   final bool    estaActiva;
-  final double? latitud;    
-  final double? longitud;   
+  final double? latitud;
+  final double? longitud;
 
   const EmpresaAdmin({
     required this.id,
@@ -47,8 +47,8 @@ class EmpresaAdmin {
     this.direccion,
     this.telefono,
     required this.estaActiva,
-    this.latitud,            
-    this.longitud,           
+    this.latitud,
+    this.longitud,
   });
 
   factory EmpresaAdmin.fromJson(Map<String, dynamic> j) => EmpresaAdmin(
@@ -70,7 +70,7 @@ class ProductoAdmin {
   final String  nombre;
   final double  precio;
   final bool    estaActivo;
-  final String? imagenUrl;   // ← NUEVO
+  final String? imagenUrl;
 
   const ProductoAdmin({
     required this.id,
@@ -85,7 +85,7 @@ class ProductoAdmin {
     nombre:     j['nombre'],
     precio:     (j['precio'] as num).toDouble(),
     estaActivo: j['esta_activo'],
-    imagenUrl:  j['imagen_url'],   // ← NUEVO
+    imagenUrl:  j['imagen_url'],
   );
 }
 
@@ -94,12 +94,23 @@ class ResumenAdmin {
   final int    clientesConDeuda;
   final int    vendedoresActivos;
   final double vendidoHoy;
+  final int    ventasHoy;
+  // Pedidos — NUEVO
+  final int    pedidosHoy;
+  final int    pedidosPendientes;
+  final int    pedidosEntregados;
+  final double montoPedidosHoy;
 
   const ResumenAdmin({
     required this.totalDeudas,
     required this.clientesConDeuda,
     required this.vendedoresActivos,
     required this.vendidoHoy,
+    required this.ventasHoy,
+    required this.pedidosHoy,
+    required this.pedidosPendientes,
+    required this.pedidosEntregados,
+    required this.montoPedidosHoy,
   });
 
   factory ResumenAdmin.fromJson(Map<String, dynamic> j) => ResumenAdmin(
@@ -107,6 +118,11 @@ class ResumenAdmin {
     clientesConDeuda:  (j['clientes_con_deuda'] as num).toInt(),
     vendedoresActivos: (j['vendedores_activos'] as num).toInt(),
     vendidoHoy:        (j['vendido_hoy']        as num).toDouble(),
+    ventasHoy:         (j['ventas_hoy']         as num).toInt(),
+    pedidosHoy:        (j['pedidos_hoy']        as num).toInt(),
+    pedidosPendientes: (j['pedidos_pendientes'] as num).toInt(),
+    pedidosEntregados: (j['pedidos_entregados'] as num).toInt(),
+    montoPedidosHoy:   (j['monto_pedidos_hoy']  as num).toDouble(),
   );
 }
 
@@ -138,32 +154,32 @@ class AdminOpState {
   final bool    cargando;
   final String? error;
   final bool    exitoso;
-  final String? ultimoId;  // ← AGREGADO
+  final String? ultimoId;
 
   const AdminOpState({
-    this.cargando = false, 
-    this.error, 
-    this.exitoso = false, 
-    this.ultimoId,  // ← AGREGADO
+    this.cargando = false,
+    this.error,
+    this.exitoso = false,
+    this.ultimoId,
   });
-  
+
   AdminOpState copyWith({
-    bool? cargando, 
-    String? error, 
-    bool? exitoso, 
-    String? ultimoId,  // ← AGREGADO
+    bool?   cargando,
+    String? error,
+    bool?   exitoso,
+    String? ultimoId,
   }) => AdminOpState(
     cargando: cargando ?? this.cargando,
     error:    error,
     exitoso:  exitoso  ?? this.exitoso,
-    ultimoId: ultimoId ?? this.ultimoId,  // ← AGREGADO
+    ultimoId: ultimoId ?? this.ultimoId,
   );
 }
 
 class AdminOpNotifier extends StateNotifier<AdminOpState> {
   AdminOpNotifier() : super(const AdminOpState());
 
-  // ── MODIFICADO: crearProducto guarda el id ─────────────
+  // ── crearProducto guarda el id ─────────────────────────
   Future<void> crearProducto(Map<String, dynamic> datos) async {
     state = state.copyWith(cargando: true);
     try {
@@ -180,28 +196,29 @@ class AdminOpNotifier extends StateNotifier<AdminOpState> {
       state = state.copyWith(cargando: false, error: msg);
     }
   }
+
   Future<Map<String, dynamic>?> parsearUrlMaps(String url) async {
-  state = state.copyWith(cargando: true);
-  try {
-    final r = await ApiClient.post(
-      '/admin/empresas/parsear-url-maps',
-      data: {'url': url},
-    );
-    state = state.copyWith(cargando: false);
-    return r.data['data'] as Map<String, dynamic>;
-  } catch (e) {
-    String msg = 'No se pudo extraer coordenadas.';
-    final match = RegExp(r'"detail":"([^"]+)"').firstMatch(e.toString());
-    if (match != null) msg = match.group(1)!;
-    state = state.copyWith(cargando: false, error: msg);
-    return null;
+    state = state.copyWith(cargando: true);
+    try {
+      final r = await ApiClient.post(
+        '/admin/empresas/parsear-url-maps',
+        data: {'url': url},
+      );
+      state = state.copyWith(cargando: false);
+      return r.data['data'] as Map<String, dynamic>;
+    } catch (e) {
+      String msg = 'No se pudo extraer coordenadas.';
+      final match = RegExp(r'"detail":"([^"]+)"').firstMatch(e.toString());
+      if (match != null) msg = match.group(1)!;
+      state = state.copyWith(cargando: false, error: msg);
+      return null;
+    }
   }
-}
 
   Future<void> editarProducto(String id, Map<String, dynamic> datos) =>
       _ejecutar(() => ApiClient.put('/admin/productos/$id', data: datos));
 
-  // ── AGREGADO: eliminarProducto ─────────────────────────
+  // ── eliminarProducto ───────────────────────────────────
   Future<void> eliminarProducto(String id) async {
     state = state.copyWith(cargando: true);
     try {
@@ -214,17 +231,16 @@ class AdminOpNotifier extends StateNotifier<AdminOpState> {
       state = state.copyWith(cargando: false, error: msg);
     }
   }
-//---------------
 
-Future<void> eliminarVendedor(String id) =>
-    _ejecutar(() => ApiClient.delete('/admin/vendedores/$id'));
+  Future<void> eliminarVendedor(String id) =>
+      _ejecutar(() => ApiClient.delete('/admin/vendedores/$id'));
 
-Future<void> eliminarEmpresa(String id) =>
-    _ejecutar(() => ApiClient.delete('/admin/empresas/$id'));
+  Future<void> eliminarEmpresa(String id) =>
+      _ejecutar(() => ApiClient.delete('/admin/empresas/$id'));
 
-Future<void> eliminarCliente(String id) =>
-    _ejecutar(() => ApiClient.delete('/clientes/$id'));
-//-----------
+  Future<void> eliminarCliente(String id) =>
+      _ejecutar(() => ApiClient.delete('/clientes/$id'));
+
   Future<void> crearVendedor(Map<String, dynamic> datos) =>
       _ejecutar(() => ApiClient.post('/admin/vendedores', data: datos));
 
@@ -260,6 +276,25 @@ Future<void> eliminarCliente(String id) =>
     }
   }
 
+  // ── actualizar configuración ───────────────────────────
+  Future<void> actualizarConfiguracion(
+      String clave, String valor) async {
+    state = state.copyWith(cargando: true);
+    try {
+      await ApiClient.put(
+        '/admin/configuracion/$clave',
+        data: {'clave': clave, 'valor': valor},
+      );
+      state = state.copyWith(cargando: false, exitoso: true);
+    } catch (e) {
+      String msg = 'Error al actualizar configuración.';
+      final match =
+          RegExp(r'"detail":"([^"]+)"').firstMatch(e.toString());
+      if (match != null) msg = match.group(1)!;
+      state = state.copyWith(cargando: false, error: msg);
+    }
+  }
+
   Future<void> _ejecutar(Future Function() accion) async {
     state = state.copyWith(cargando: true);
     try {
@@ -280,3 +315,32 @@ final adminOpProvider =
     StateNotifierProvider<AdminOpNotifier, AdminOpState>(
   (ref) => AdminOpNotifier(),
 );
+
+// ── Modelo configuración ──────────────────────────────────
+class ConfiguracionNegocio {
+  final String  clave;
+  final String  valor;
+  final String? descripcion;
+
+  const ConfiguracionNegocio({
+    required this.clave,
+    required this.valor,
+    this.descripcion,
+  });
+
+  factory ConfiguracionNegocio.fromJson(Map<String, dynamic> j) =>
+      ConfiguracionNegocio(
+        clave:       j['clave'],
+        valor:       j['valor'],
+        descripcion: j['descripcion'],
+      );
+}
+
+// ── Provider de configuración ─────────────────────────────
+final configuracionAdminProvider =
+    FutureProvider<List<ConfiguracionNegocio>>((ref) async {
+  final r = await ApiClient.get('/admin/configuracion');
+  return (r.data as List)
+      .map((c) => ConfiguracionNegocio.fromJson(c))
+      .toList();
+});
