@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+
 import '../../../core/constants/colores.dart';
 import '../providers/reporte_provider.dart';
 import '../providers/ventas_provider.dart';
@@ -47,7 +47,8 @@ class DashboardScreen extends ConsumerWidget {
                     // Cambiar al tab de ruta (índice 0) en el VendedorShell
                     ref.read(tabActivoProvider.notifier).state = 0;
                     // Indicar que quiere ver el mapa cuando está completada
-                    ref.read(mostrarMapaCompletadaProvider.notifier).state = true;
+                    ref.read(mostrarMapaCompletadaProvider.notifier).state =
+                        true;
                     ref.invalidate(stockRestanteProvider);
                   },
                   icon: const Icon(
@@ -89,10 +90,16 @@ class DashboardScreen extends ConsumerWidget {
 
                     // Resumen métricas
                     resumenAsync.when(
-                      loading: () => const _SkeletonResumen(),
-                      error: (_, __) => const SizedBox.shrink(),
-                      data: (r) => _BloqueMetricas(resumen: r),
-                    ),
+  loading: () => const _SkeletonResumen(),
+  error: (e, st) {
+    debugPrint('❌ Error resumen: $e');
+    return const SizedBox.shrink();
+  },
+  data: (r) {
+    debugPrint('✅ Resumen: ventas=${r.totalVentas} vendido=${r.totalVendido}');
+    return _BloqueMetricas(resumen: r);
+  },
+),
                     const SizedBox(height: 20),
 
                     // Acciones rápidas

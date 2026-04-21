@@ -70,7 +70,7 @@ final resumenDiaProvider =
 
 // autoDispose → se destruye al salir de la pantalla y recarga al volver
 final resumenPorFechasProvider =
-    FutureProvider.autoDispose.family<ResumenDia, RangoFechas>(
+    FutureProvider.family<ResumenDia, RangoFechas>(
         (ref, rango) async {
   final r = await ApiClient.get(
     '/reportes/vendedor/resumen-fechas',

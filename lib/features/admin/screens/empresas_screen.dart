@@ -5,7 +5,7 @@ import '../../../core/constants/colores.dart';
 import '../../../core/utils/validators.dart';
 import '../../clientes/providers/registro_cliente_provider.dart';
 import '../providers/admin_provider.dart';
-import 'admin_form_widgets.dart';
+
 
 // ══════════════════════════════════════════════════════════
 //  EMPRESAS SCREEN — UX mejorado (Google Maps UX principles)

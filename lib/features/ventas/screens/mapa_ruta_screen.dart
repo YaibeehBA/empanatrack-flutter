@@ -20,6 +20,9 @@ import '../widgets/empresa_panel.dart';
 import '../widgets/panel_inferior_ruta.dart';
 import 'dashboard_screen.dart';
 import 'stock_diario_screen.dart';
+import '../providers/reporte_provider.dart';
+import '../providers/pedidos_vendedor_provider.dart';
+import '../providers/ventas_provider.dart';
 
 const double _kDistanciaInicio = 300.0;
 const double _kDistanciaEmpresa = 150.0;
@@ -42,7 +45,8 @@ class _MapaRutaScreenState extends ConsumerState<MapaRutaScreen> {
   bool _mostrarAlerta = false;
   bool _siguiendo = true;
   bool _panelCargando = false;
-  bool _mostrarMapaCompletada = false;  // Controla si mostrar mapa cuando está completada
+  bool _mostrarMapaCompletada =
+      false; // Controla si mostrar mapa cuando está completada
 
   final _mapCtrl = MapController();
   StreamSubscription<Position>? _gpsSub;
@@ -85,7 +89,9 @@ class _MapaRutaScreenState extends ConsumerState<MapaRutaScreen> {
       _estadoHoy = estado;
 
       // Debug: Mostrar estado de la ruta
-      debugPrint('📍 Estado de ruta: tieneRuta=${estado.tieneRuta}, completada=${estado.completada}, sesionCompletada=${estado.sesionCompletada}, sesion=${estado.sesion?.id}');
+      debugPrint(
+        '📍 Estado de ruta: tieneRuta=${estado.tieneRuta}, completada=${estado.completada}, sesionCompletada=${estado.sesionCompletada}, sesion=${estado.sesion?.id}',
+      );
 
       // Invalidar stock al cargar
       ref.invalidate(stockRestanteProvider);
@@ -98,7 +104,9 @@ class _MapaRutaScreenState extends ConsumerState<MapaRutaScreen> {
       // Si la sesión ya fue completada hoy, ir directo al dashboard
       if (estado.completada || estado.sesionCompletada) {
         _sesionId = estado.sesion?.id ?? 'completada';
-        debugPrint('🎯 Ruta completada detectada. sesionId: $_sesionId, completada: ${estado.completada}');
+        debugPrint(
+          '🎯 Ruta completada detectada. sesionId: $_sesionId, completada: ${estado.completada}',
+        );
         // Reset mostrarMapa para mostrar dashboard primero
         ref.read(mostrarMapaCompletadaProvider.notifier).state = false;
         setState(() => _fase = FaseRuta.completada);
@@ -458,9 +466,19 @@ class _MapaRutaScreenState extends ConsumerState<MapaRutaScreen> {
     ref.invalidate(stockRestanteProvider);
     ref.invalidate(stockHoyProvider);
 
+    final hoy   = _fmtHoy();
+    final rango = RangoFechas(desde: hoy, hasta: hoy);
+    ref.invalidate(resumenPorFechasProvider(rango));
+    ref.invalidate(historialPorFechasProvider(rango));
+    ref.invalidate(pedidosHistorialProvider(rango));
+
     if (mounted) setState(() => _fase = FaseRuta.completada);
   }
-
+  String _fmtHoy() {
+    final n = DateTime.now();
+    return '${n.year}-${n.month.toString().padLeft(2, '0')}'
+        '-${n.day.toString().padLeft(2, '0')}';
+  }
   void _mostrarSnack(String msg, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -493,7 +511,7 @@ class _MapaRutaScreenState extends ConsumerState<MapaRutaScreen> {
     // Watch el provider para cambios desde dashboard
     final mostrarMapa = ref.watch(mostrarMapaCompletadaProvider);
     _mostrarMapaCompletada = mostrarMapa;
-    
+
     switch (_fase) {
       case FaseRuta.cargando:
         return _scaffoldCargando();
@@ -581,7 +599,7 @@ class _MapaRutaScreenState extends ConsumerState<MapaRutaScreen> {
   // ── MAPA ──────────────────────────────────────────────
   Widget _scaffoldMapa() {
     final enRuta = _fase == FaseRuta.enRuta;
-    final completada = _fase == FaseRuta.completada;  // ✅ NUEVO
+    final completada = _fase == FaseRuta.completada; // ✅ NUEVO
     final centro = _miPosicion ?? const LatLng(-1.66, -78.65);
 
     return Scaffold(
@@ -705,110 +723,119 @@ class _MapaRutaScreenState extends ConsumerState<MapaRutaScreen> {
                     onMarcarVisitada: _marcarVisitada,
                   )
                 : completada
-                    // Panel para ruta completada - solo mostrar resumen y botón volver
-                    ? Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 10,
-                              spreadRadius: 2,
-                            ),
-                          ],
+                // Panel para ruta completada - solo mostrar resumen y botón volver
+                ? Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          spreadRadius: 2,
                         ),
-                        child: SafeArea(
-                          top: false,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: AppColores.success.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: AppColores.success,
-                                    width: 2,
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.check_circle_rounded,
-                                      color: AppColores.success,
-                                      size: 24,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          const Text(
-                                            'Ruta Completada',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          Text(
-                                            'Empresas visitadas: ${_estadoHoy?.visitadas}/${_estadoHoy?.total}',
-                                            style: TextStyle(
-                                              color: AppColores.textSecond,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                      ],
+                    ),
+                    child: SafeArea(
+                      top: false,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: AppColores.success.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: AppColores.success,
+                                width: 2,
                               ),
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColores.primary,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                  ),
-                                  onPressed: () {
-                                    // Volver al dashboard
-                                    ref.read(mostrarMapaCompletadaProvider.notifier).state = false;
-                                  },
-                                  child: const Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.check_circle_rounded,
+                                  color: AppColores.success,
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Icon(Icons.dashboard_outlined, size: 18),
-                                      SizedBox(width: 8),
-                                      Text('Ver Resumen del Día'),
+                                      const Text(
+                                        'Ruta Completada',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Empresas visitadas: ${_estadoHoy?.visitadas}/${_estadoHoy?.total}',
+                                        style: TextStyle(
+                                          color: AppColores.textSecond,
+                                          fontSize: 13,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      )
-                    : Consumer(
-                        builder: (ctx, ref, _) {
-                          final stockAsync = ref.watch(stockRestanteProvider);
-                          final sinStock = stockAsync.maybeWhen(
-                            data: (s) => s.sinStock,
-                            orElse: () => false,
-                          );
-                          return PanelInferiorRuta(
-                            estado: _estadoHoy,
-                            enRuta: enRuta,
-                            cargando: _panelCargando,
-                            sinStock: sinStock && enRuta,
-                            onIniciarRuta: _iniciarRuta,
-                            onNuevaVenta: _abrirNuevaVenta,
-                            onFinalizarRuta: _completarRuta,
-                          );
-                        },
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColores.primary,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                              ),
+                              onPressed: () {
+                                // Volver al dashboard
+                                ref
+                                        .read(
+                                          mostrarMapaCompletadaProvider
+                                              .notifier,
+                                        )
+                                        .state =
+                                    false;
+                              },
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.dashboard_outlined, size: 18),
+                                  SizedBox(width: 8),
+                                  Text('Ver Resumen del Día'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                    ),
+                  )
+                : Consumer(
+                    builder: (ctx, ref, _) {
+                      final stockAsync = ref.watch(stockRestanteProvider);
+                      final sinStock = stockAsync.maybeWhen(
+                        data: (s) => s.sinStock,
+                        orElse: () => false,
+                      );
+                      return PanelInferiorRuta(
+                        estado: _estadoHoy,
+                        enRuta: enRuta,
+                        cargando: _panelCargando,
+                        sinStock: sinStock && enRuta,
+                        onIniciarRuta: _iniciarRuta,
+                        onNuevaVenta: _abrirNuevaVenta,
+                        onFinalizarRuta: _completarRuta,
+                      );
+                    },
+                  ),
           ),
 
           // Botón recentrar

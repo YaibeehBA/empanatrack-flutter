@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/colores.dart';
 import '../providers/ventas_provider.dart';
 import '../providers/reporte_provider.dart';
-import '../providers/pedidos_vendedor_provider.dart' hide RangoFechas;
+import '../providers/pedidos_vendedor_provider.dart';
 import '../../../shared/models/venta_model.dart';
 
 // ── Helpers de fecha ──────────────────────────────────────

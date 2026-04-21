@@ -186,7 +186,7 @@ class PedidoActivoNotifier
 
 // ── Historial de pedidos entregados por rango ─────────────
 final pedidosHistorialProvider =
-    FutureProvider.autoDispose.family<List<PedidoVendedor>, RangoFechas>(
+    FutureProvider.family<List<PedidoVendedor>, RangoFechas>(
   (ref, rango) async {
     final r = await ApiClient.get(
       '/pedidos/historial-vendedor',

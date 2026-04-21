@@ -41,7 +41,7 @@ class RangoFechas {
 
 // autoDispose → se destruye al salir y recarga al volver
 final historialPorFechasProvider =
-    FutureProvider.autoDispose.family<List<VentaModel>, RangoFechas>(
+    FutureProvider.family<List<VentaModel>, RangoFechas>(
         (ref, rango) async {
   final r = await ApiClient.get('/ventas/historial-fechas', params: {
     'desde': rango.desde,
