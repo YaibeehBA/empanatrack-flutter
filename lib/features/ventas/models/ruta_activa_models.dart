@@ -8,6 +8,7 @@ class EmpresaRuta {
   final double? longitud;
   final int     orden;
   final bool    visitada;
+  final String? llegadaEn; // ← NUEVO
 
   const EmpresaRuta({
     required this.id,
@@ -17,27 +18,43 @@ class EmpresaRuta {
     this.longitud,
     required this.orden,
     required this.visitada,
+    this.llegadaEn,        // ← NUEVO
   });
 
   bool get tieneCoordenadas => latitud != null && longitud != null;
+
+  // Llegada registrada en backend (para recuperar timer al reentrar)
+  DateTime? get llegadaDateTime {
+    if (llegadaEn == null) return null;
+    try { return DateTime.parse(llegadaEn!).toLocal(); }
+    catch (_) { return null; }
+  }
 
   factory EmpresaRuta.fromJson(Map<String, dynamic> j) => EmpresaRuta(
     id:        j['id'],
     nombre:    j['nombre'],
     direccion: j['direccion'],
-    latitud:   j['latitud']  != null ? (j['latitud']  as num).toDouble() : null,
-    longitud:  j['longitud'] != null ? (j['longitud'] as num).toDouble() : null,
+    latitud:   j['latitud']   != null
+        ? (j['latitud']   as num).toDouble() : null,
+    longitud:  j['longitud']  != null
+        ? (j['longitud']  as num).toDouble() : null,
     orden:     j['orden'],
-    visitada:  j['visitada'] ?? false,
+    visitada:  j['visitada']  ?? false,
+    llegadaEn: j['llegada_en'],  // ← NUEVO
   );
 
-  EmpresaRuta copyWith({bool? visitada}) => EmpresaRuta(
-    id: id, nombre: nombre, direccion: direccion,
-    latitud: latitud, longitud: longitud, orden: orden,
-    visitada: visitada ?? this.visitada,
-  );
+  EmpresaRuta copyWith({bool? visitada, String? llegadaEn}) =>
+      EmpresaRuta(
+        id:        id,
+        nombre:    nombre,
+        direccion: direccion,
+        latitud:   latitud,
+        longitud:  longitud,
+        orden:     orden,
+        visitada:  visitada  ?? this.visitada,
+        llegadaEn: llegadaEn ?? this.llegadaEn,
+      );
 }
-
 // ── Sesión activa ─────────────────────────────────────────
 class SesionRuta {
   final String  id;
