@@ -14,7 +14,8 @@ class DashboardScreen extends ConsumerWidget {
   /// [sesionId] si viene de finalizar ruta, muestra métricas del día.
   /// Si es null, solo muestra acceso rápido al historial.
   final String? sesionId;
-  const DashboardScreen({super.key, this.sesionId});
+  final VoidCallback? onVolverAlMapa;
+  const DashboardScreen({super.key, this.sesionId, this.onVolverAlMapa});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -44,12 +45,12 @@ class DashboardScreen extends ConsumerWidget {
                 // Volver al mapa (nueva ruta)
                 TextButton.icon(
                   onPressed: () {
-                    // Cambiar al tab de ruta (índice 0) en el VendedorShell
-                    ref.read(tabActivoProvider.notifier).state = 0;
-                    // Indicar que quiere ver el mapa cuando está completada
-                    ref.read(mostrarMapaCompletadaProvider.notifier).state =
-                        true;
-                    ref.invalidate(stockRestanteProvider);
+                    if (onVolverAlMapa != null) {
+                      onVolverAlMapa!();
+                    } else {
+                      // Fallback: intentar cambiar tab
+                      ref.read(tabActivoProvider.notifier).state = 0;
+                    }
                   },
                   icon: const Icon(
                     Icons.map_outlined,
@@ -90,16 +91,18 @@ class DashboardScreen extends ConsumerWidget {
 
                     // Resumen métricas
                     resumenAsync.when(
-  loading: () => const _SkeletonResumen(),
-  error: (e, st) {
-    debugPrint('❌ Error resumen: $e');
-    return const SizedBox.shrink();
-  },
-  data: (r) {
-    debugPrint('✅ Resumen: ventas=${r.totalVentas} vendido=${r.totalVendido}');
-    return _BloqueMetricas(resumen: r);
-  },
-),
+                      loading: () => const _SkeletonResumen(),
+                      error: (e, st) {
+                        debugPrint('❌ Error resumen: $e');
+                        return const SizedBox.shrink();
+                      },
+                      data: (r) {
+                        debugPrint(
+                          '✅ Resumen: ventas=${r.totalVentas} vendido=${r.totalVendido}',
+                        );
+                        return _BloqueMetricas(resumen: r);
+                      },
+                    ),
                     const SizedBox(height: 20),
 
                     // Acciones rápidas
