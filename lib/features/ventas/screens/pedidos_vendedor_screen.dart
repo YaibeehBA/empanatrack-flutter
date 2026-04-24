@@ -1,30 +1,20 @@
-import 'dart:math';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:geolocator/geolocator.dart';
 import '../../../core/constants/colores.dart';
-import '../../../core/network/api_client.dart';
 import '../../../core/services/websocket_service.dart';
-import '../../../core/services/ubicacion_service.dart';
-import '../../auth/providers/auth_provider.dart';
 import '../providers/pedidos_vendedor_provider.dart';
 
 // ══════════════════════════════════════════════════════════
-//  PANTALLA PRINCIPAL — PEDIDOS DISPONIBLES
+//  PANTALLA — RESERVAS DEL VENDEDOR
 // ══════════════════════════════════════════════════════════
 class PedidosVendedorScreen extends ConsumerWidget {
   const PedidosVendedorScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final disponiblesAsync = ref.watch(pedidosDisponiblesProvider);
-    final activoAsync = ref.watch(pedidoActivoProvider);
+    final disponiblesAsync = ref.watch(reservasDisponiblesProvider);
+    final activaAsync = ref.watch(reservaActivaProvider);
     final wsService = WebSocketService();
-    final token = ref.read(authProvider).sesion?.token ?? '';
 
     return Scaffold(
       backgroundColor: AppColores.background,
@@ -33,11 +23,11 @@ class PedidosVendedorScreen extends ConsumerWidget {
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
         title: const Text(
-          'Pedidos',
+          'Reservas',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
-          // ── Indicador estado WebSocket ─────────────────
+          // Indicador WebSocket
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: Tooltip(
@@ -55,54 +45,46 @@ class PedidosVendedorScreen extends ConsumerWidget {
               ),
             ),
           ),
-          // ── Botón refresh manual ──────────────────────
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              ref.read(pedidosDisponiblesProvider.notifier).recargar();
-              ref.read(pedidoActivoProvider.notifier).recargar();
+              ref.read(reservasDisponiblesProvider.notifier).recargar();
+              ref.read(reservaActivaProvider.notifier).recargar();
             },
           ),
         ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          ref.read(pedidosDisponiblesProvider.notifier).recargar();
-          ref.read(pedidoActivoProvider.notifier).recargar();
-          return Future.value();
+          await ref.read(reservasDisponiblesProvider.notifier).recargar();
+          await ref.read(reservaActivaProvider.notifier).recargar();
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // ── Pedido activo (si tiene uno) ────────────
-            activoAsync.when(
-              loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
-              data: (activo) => activo == null
+            // ── Reserva activa ──────────────────────────
+            activaAsync.when(
+              loading: () => const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+              error: (error, _) => _ErrorVista(
+                mensaje: error.toString(),
+                onReintentar: () => ref.read(reservaActivaProvider.notifier).recargar(),
+              ),
+              data: (activa) => activa == null
                   ? const SizedBox.shrink()
                   : Column(
                       children: [
-                        _SecLabel('MI PEDIDO ACTIVO'),
+                        _SecLabel('MI RESERVA ACTIVA'),
                         const SizedBox(height: 8),
-                        _CardPedidoActivo(
-                          pedido: activo,
-                          token: token,
-                          baseUrl: ApiClient.baseUrl,
-                          onVerMapa: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => _MapaEntregaScreen(
-                                pedido: activo,
-                                token: token,
-                                baseUrl: ApiClient.baseUrl,
-                              ),
-                            ),
-                          ),
+                        _CardReservaActiva(
+                          pedido: activa,
                           onActualizar: () {
-                            ref.read(pedidoActivoProvider.notifier).recargar();
-                            ref
-                                .read(pedidosDisponiblesProvider.notifier)
-                                .recargar();
+                            ref.read(reservaActivaProvider.notifier).recargar();
+                            ref.read(reservasDisponiblesProvider.notifier).recargar();
                           },
                         ),
                         const SizedBox(height: 20),
@@ -110,8 +92,8 @@ class PedidosVendedorScreen extends ConsumerWidget {
                     ),
             ),
 
-            // ── Pedidos disponibles ─────────────────────
-            _SecLabel('PEDIDOS DISPONIBLES'),
+            // ── Reservas disponibles ────────────────────
+            _SecLabel('RESERVAS DISPONIBLES'),
             const SizedBox(height: 8),
 
             disponiblesAsync.when(
@@ -121,19 +103,18 @@ class PedidosVendedorScreen extends ConsumerWidget {
                   child: CircularProgressIndicator(),
                 ),
               ),
-              error: (e, _) => _ErrorVista(
-                onReintentar: () =>
-                    ref.read(pedidosDisponiblesProvider.notifier).recargar(),
+              error: (error, _) => _ErrorVista(
+                mensaje: error.toString(),
+                onReintentar: () => ref.read(reservasDisponiblesProvider.notifier).recargar(),
               ),
-              data: (pedidos) => pedidos.isEmpty
-                  ? const _SinPedidos()
+              data: (reservas) => reservas.isEmpty
+                  ? const _SinReservas()
                   : Column(
-                      children: pedidos
+                      children: reservas
                           .map(
-                            (p) => _CardPedidoDisponible(
+                            (p) => _CardReservaDisponible(
                               pedido: p,
-                              onAceptar: () =>
-                                  _confirmarAceptar(context, ref, p),
+                              onAceptar: () => _confirmarAceptar(context, ref, p),
                             ),
                           )
                           .toList(),
@@ -145,6 +126,7 @@ class PedidosVendedorScreen extends ConsumerWidget {
     );
   }
 
+  // ── Diálogo confirmar aceptar ─────────────────────────
   void _confirmarAceptar(
     BuildContext context,
     WidgetRef ref,
@@ -154,7 +136,7 @@ class PedidosVendedorScreen extends ConsumerWidget {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Aceptar pedido'),
+        title: const Text('Aceptar reserva'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,7 +148,7 @@ class PedidosVendedorScreen extends ConsumerWidget {
                   fontSize: 14,
                 ),
                 children: [
-                  const TextSpan(text: '¿Aceptar el pedido de '),
+                  const TextSpan(text: '¿Aceptar la reserva de '),
                   TextSpan(
                     text: pedido.clienteNombre,
                     style: const TextStyle(fontWeight: FontWeight.bold),
@@ -175,6 +157,14 @@ class PedidosVendedorScreen extends ConsumerWidget {
                 ],
               ),
             ),
+            if (pedido.empresaNombre != null) ...[
+              const SizedBox(height: 8),
+              _InfoChip(
+                icono: Icons.store_outlined,
+                texto: pedido.empresaNombre!,
+                color: AppColores.accent,
+              ),
+            ],
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
@@ -189,8 +179,7 @@ class PedidosVendedorScreen extends ConsumerWidget {
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Solo un vendedor puede aceptar cada pedido. '
-                      'Una vez aceptado desaparece para los demás.',
+                      'Solo un vendedor puede aceptar cada reserva. Una vez aceptada desaparece para los demás.',
                       style: TextStyle(fontSize: 12, color: AppColores.warning),
                     ),
                   ),
@@ -206,16 +195,17 @@ class PedidosVendedorScreen extends ConsumerWidget {
           ),
           Consumer(
             builder: (ctx, ref2, _) {
-              final state = ref2.watch(aceptarPedidoProvider);
-              ref2.listen<AceptarPedidoState>(aceptarPedidoProvider, (_, next) {
+              final state = ref2.watch(aceptarReservaProvider);
+
+              ref2.listen<AceptarReservaState>(aceptarReservaProvider, (_, next) {
                 if (next.exitoso) {
                   Navigator.pop(ctx);
-                  ref.read(pedidosDisponiblesProvider.notifier).recargar();
-                  ref.read(pedidoActivoProvider.notifier).recargar();
-                  ref2.read(aceptarPedidoProvider.notifier).resetear();
+                  ref.read(reservasDisponiblesProvider.notifier).recargar();
+                  ref.read(reservaActivaProvider.notifier).recargar();
+                  ref2.read(aceptarReservaProvider.notifier).resetear();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('✅ Pedido aceptado'),
+                      content: Text('✅ Reserva aceptada'),
                       backgroundColor: AppColores.success,
                     ),
                   );
@@ -228,15 +218,14 @@ class PedidosVendedorScreen extends ConsumerWidget {
                       backgroundColor: AppColores.danger,
                     ),
                   );
-                  ref2.read(aceptarPedidoProvider.notifier).resetear();
+                  ref2.read(aceptarReservaProvider.notifier).resetear();
                 }
               });
+
               return ElevatedButton(
                 onPressed: state.cargando
                     ? null
-                    : () => ref2
-                          .read(aceptarPedidoProvider.notifier)
-                          .aceptar(pedido.id),
+                    : () => ref2.read(aceptarReservaProvider.notifier).aceptar(pedido.id),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColores.success,
                   foregroundColor: Colors.white,
@@ -264,12 +253,12 @@ class PedidosVendedorScreen extends ConsumerWidget {
 }
 
 // ══════════════════════════════════════════════════════════
-//  CARD PEDIDO DISPONIBLE
+//  CARD — RESERVA DISPONIBLE
 // ══════════════════════════════════════════════════════════
-class _CardPedidoDisponible extends StatelessWidget {
+class _CardReservaDisponible extends StatelessWidget {
   final PedidoVendedor pedido;
   final VoidCallback onAceptar;
-  const _CardPedidoDisponible({required this.pedido, required this.onAceptar});
+  const _CardReservaDisponible({required this.pedido, required this.onAceptar});
 
   @override
   Widget build(BuildContext context) {
@@ -294,13 +283,13 @@ class _CardPedidoDisponible extends StatelessWidget {
           Row(
             children: [
               CircleAvatar(
-                backgroundColor: AppColores.primary.withOpacity(0.12),
+                backgroundColor: AppColores.accent.withOpacity(0.12),
                 child: Text(
                   pedido.clienteNombre.isNotEmpty
                       ? pedido.clienteNombre[0].toUpperCase()
                       : '?',
                   style: const TextStyle(
-                    color: AppColores.primary,
+                    color: AppColores.accent,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -318,6 +307,15 @@ class _CardPedidoDisponible extends StatelessWidget {
                         color: AppColores.textPrimary,
                       ),
                     ),
+                    if (pedido.empresaNombre != null)
+                      Text(
+                        pedido.empresaNombre!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColores.accent,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     Text(
                       _formatFecha(DateTime.parse(pedido.creadoEn)),
                       style: const TextStyle(
@@ -346,19 +344,12 @@ class _CardPedidoDisponible extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 2),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.circle,
-                    size: 5,
-                    color: AppColores.textSecond,
-                  ),
+                  const Icon(Icons.circle, size: 5, color: AppColores.textSecond),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       '${item['cantidad']}x ${item['nombre']}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColores.textPrimary,
-                      ),
+                      style: const TextStyle(fontSize: 13, color: AppColores.textPrimary),
                     ),
                   ),
                   Text(
@@ -375,36 +366,24 @@ class _CardPedidoDisponible extends StatelessWidget {
           ),
           const SizedBox(height: 10),
 
-          // Chips info
+          // Chips
           Row(
             children: [
-              _InfoChip(
-                icono: pedido.tipoPago == 'transferencia'
-                    ? Icons.account_balance
-                    : Icons.delivery_dining,
-                texto: pedido.tipoPago == 'transferencia'
-                    ? 'Transferencia'
-                    : 'Contraentrega',
-                color: pedido.tipoPago == 'transferencia'
-                    ? AppColores.accent
-                    : AppColores.warning,
+              const _InfoChip(
+                icono: Icons.bookmark_outlined,
+                texto: 'Reserva',
+                color: AppColores.accent,
               ),
               const SizedBox(width: 8),
-              if (pedido.tieneCoordenadas)
-                const _InfoChip(
-                  icono: Icons.location_on,
-                  texto: 'Con GPS',
-                  color: AppColores.success,
-                )
-              else if (pedido.direccionEntrega != null)
-                const _InfoChip(
-                  icono: Icons.location_on_outlined,
-                  texto: 'Con dirección',
-                  color: AppColores.primary,
-                ),
+              const _InfoChip(
+                icono: Icons.local_shipping_outlined,
+                texto: 'Envío gratis',
+                color: AppColores.success,
+              ),
             ],
           ),
 
+          // Notas
           if (pedido.notas != null) ...[
             const SizedBox(height: 8),
             Container(
@@ -415,19 +394,12 @@ class _CardPedidoDisponible extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.notes,
-                    size: 14,
-                    color: AppColores.textSecond,
-                  ),
+                  const Icon(Icons.notes, size: 14, color: AppColores.textSecond),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       pedido.notas!,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColores.textSecond,
-                      ),
+                      style: const TextStyle(fontSize: 12, color: AppColores.textSecond),
                     ),
                   ),
                 ],
@@ -445,15 +417,10 @@ class _CardPedidoDisponible extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColores.success,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               icon: const Icon(Icons.check_circle_outline, size: 18),
-              label: const Text(
-                'Aceptar pedido',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              label: const Text('Aceptar reserva', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -463,22 +430,13 @@ class _CardPedidoDisponible extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════
-//  CARD PEDIDO ACTIVO
+//  CARD — RESERVA ACTIVA
 // ══════════════════════════════════════════════════════════
-class _CardPedidoActivo extends ConsumerWidget {
+class _CardReservaActiva extends ConsumerWidget {
   final PedidoVendedor pedido;
-  final String token;
-  final String baseUrl;
-  final VoidCallback onVerMapa;
   final VoidCallback onActualizar;
 
-  const _CardPedidoActivo({
-    required this.pedido,
-    required this.token,
-    required this.baseUrl,
-    required this.onVerMapa,
-    required this.onActualizar,
-  });
+  const _CardReservaActiva({required this.pedido, required this.onActualizar});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -486,14 +444,14 @@ class _CardPedidoActivo extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppColores.primary, AppColores.primary.withOpacity(0.75)],
+          colors: [AppColores.accent, AppColores.accent.withOpacity(0.75)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: AppColores.primary.withOpacity(0.3),
+            color: AppColores.accent.withOpacity(0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -502,6 +460,7 @@ class _CardPedidoActivo extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Encabezado
           Row(
             children: [
               const Text('📦', style: TextStyle(fontSize: 24)),
@@ -510,34 +469,28 @@ class _CardPedidoActivo extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Pedido en curso',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
+                    const Text('Reserva en curso', style: TextStyle(color: Colors.white70, fontSize: 12)),
                     Text(
                       pedido.clienteNombre,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
+                    if (pedido.empresaNombre != null)
+                      Text(
+                        pedido.empresaNombre!,
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
                   ],
                 ),
               ),
               Text(
                 '\$${pedido.total.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
               ),
             ],
           ),
           const SizedBox(height: 12),
 
-          // Estado
+          // Badge estado
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
@@ -545,121 +498,93 @@ class _CardPedidoActivo extends ConsumerWidget {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              pedido.estado == 'aceptado'
-                  ? '✅ Aceptado — preparando entrega'
-                  : '🚚 En camino',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
+              pedido.estadoLabel,
+              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
             ),
           ),
 
-          if (pedido.direccionEntrega != null) ...[
+          // Notas
+          if (pedido.notas != null) ...[
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.location_on, color: Colors.white70, size: 14),
+                const Icon(Icons.notes, color: Colors.white70, size: 14),
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text(
-                    pedido.direccionEntrega!,
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
+                  child: Text(pedido.notas!, style: const TextStyle(color: Colors.white70, fontSize: 12)),
                 ),
               ],
             ),
           ],
           const SizedBox(height: 14),
 
-          Row(
-            children: [
-              // Botón ver mapa
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: pedido.tieneCoordenadas ? onVerMapa : null,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white54),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  icon: const Icon(Icons.map_outlined, size: 16),
-                  label: const Text('Ver ruta', style: TextStyle(fontSize: 13)),
-                ),
-              ),
-              const SizedBox(width: 10),
-
-              // Botón marcar en camino / entregado
-              Expanded(
-                child: Consumer(
-                  builder: (ctx, ref2, _) {
-                    final state = ref2.watch(aceptarPedidoProvider);
-                    return ElevatedButton.icon(
+          // Acciones
+          Consumer(
+            builder: (ctx, ref2, _) {
+              final state = ref2.watch(aceptarReservaProvider);
+              return Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
                       onPressed: state.cargando
                           ? null
-                          : () => _cambiarEstado(ctx, ref2),
+                          : () => _confirmarEstado(ctx, ref2, 'entregado'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: pedido.estado == 'aceptado'
-                            ? AppColores.warning
-                            : AppColores.success,
+                        backgroundColor: AppColores.success,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
-                      icon: Icon(
-                        pedido.estado == 'aceptado'
-                            ? Icons.directions_bike
-                            : Icons.check_circle,
-                        size: 16,
+                      icon: const Icon(Icons.check_circle, size: 16),
+                      label: const Text('Entregado', style: TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: state.cargando
+                          ? null
+                          : () => _confirmarEstado(ctx, ref2, 'cancelado'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white54),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
-                      label: Text(
-                        pedido.estado == 'aceptado' ? 'En camino' : 'Entregado',
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
+                      icon: const Icon(Icons.cancel_outlined, size: 16),
+                      label: const Text('Cancelar', style: TextStyle(fontSize: 13)),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  void _cambiarEstado(BuildContext context, WidgetRef ref) {
-    final nuevoEstado = pedido.estado == 'aceptado' ? 'en_camino' : 'entregado';
-    final label = nuevoEstado == 'en_camino' ? 'en camino' : 'entregado';
+  void _confirmarEstado(BuildContext context, WidgetRef ref, String nuevoEstado) {
+    final label = nuevoEstado == 'entregado' ? 'entregado' : 'cancelado';
+    final color = nuevoEstado == 'entregado' ? AppColores.success : AppColores.danger;
 
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Marcar como $label'),
-        content: Text(
-          '¿Confirmas que el pedido de '
-          '${pedido.clienteNombre} está $label?',
-        ),
+        content: Text('¿Confirmas que la reserva de ${pedido.clienteNombre} está $label?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              await ref
-                  .read(aceptarPedidoProvider.notifier)
-                  .actualizarEstado(pedido.id, nuevoEstado);
+              await ref.read(aceptarReservaProvider.notifier).actualizarEstado(pedido.id, nuevoEstado);
               onActualizar();
-              ref.read(aceptarPedidoProvider.notifier).resetear();
+              ref.read(aceptarReservaProvider.notifier).resetear();
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColores.primary,
+              backgroundColor: color,
               foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             child: const Text('Confirmar'),
           ),
@@ -667,662 +592,6 @@ class _CardPedidoActivo extends ConsumerWidget {
       ),
     );
   }
-}
-
-// ══════════════════════════════════════════════════════════
-//  MAPA DE ENTREGA
-// ══════════════════════════════════════════════════════════
-class _MapaEntregaScreen extends StatefulWidget {
-  final PedidoVendedor pedido;
-  final String token;
-  final String baseUrl;
-
-  const _MapaEntregaScreen({
-    required this.pedido,
-    required this.token,
-    required this.baseUrl,
-  });
-
-  @override
-  State<_MapaEntregaScreen> createState() => _MapaEntregaScreenState();
-}
-
-class _MapaEntregaScreenState extends State<_MapaEntregaScreen> {
-  final _mapCtrl = MapController();
-  LatLng? _miPosicion;
-  List<LatLng> _rutaCalles = [];
-  double? _distanciaMetros;
-  bool _cargando = true;
-  bool _cercaDelFin = false;
-  bool _siguiendoVendedor = true;
-  static const double _alerta = 500;
-
-  final _ubicSvc = UbicacionVendedorService();
-
-  @override
-  void initState() {
-    super.initState();
-    _inicializar();
-  }
-
-  @override
-  void dispose() {
-    _ubicSvc.detener();
-    super.dispose();
-  }
-
-  Future<void> _inicializar() async {
-    await _obtenerPosicion();
-    if (_miPosicion != null) await _cargarRutaOSRM();
-    if (mounted) setState(() => _cargando = false);
-
-    // Iniciar envío de ubicación en tiempo real
-    await _ubicSvc.iniciar(
-      token: widget.token,
-      baseUrl: widget.baseUrl,
-      pedidoId: widget.pedido.id,
-    );
-
-    // Actualizar marcador al moverse
-    Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10,
-      ),
-    ).listen((pos) {
-      if (!mounted) return;
-      final nueva = LatLng(pos.latitude, pos.longitude);
-      setState(() => _miPosicion = nueva);
-
-      // Seguir al vendedor en el mapa
-      if (_siguiendoVendedor) {
-        _mapCtrl.move(nueva, _mapCtrl.camera.zoom);
-      }
-
-      // Verificar cercanía
-      if (widget.pedido.tieneCoordenadas) {
-        _verificarCercania(
-          LatLng(widget.pedido.latitudEntrega!, widget.pedido.longitudEntrega!),
-        );
-      }
-    });
-  }
-
-  Future<void> _obtenerPosicion() async {
-    try {
-      var perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
-      if (perm == LocationPermission.denied ||
-          perm == LocationPermission.deniedForever)
-        return;
-
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-      if (mounted) {
-        setState(() => _miPosicion = LatLng(pos.latitude, pos.longitude));
-      }
-    } catch (e) {
-      print('❌ [GPS] $e');
-    }
-  }
-
-  Future<void> _cargarRutaOSRM() async {
-    if (_miPosicion == null || !widget.pedido.tieneCoordenadas) return;
-
-    final origen = _miPosicion!;
-    final destino = LatLng(
-      widget.pedido.latitudEntrega!,
-      widget.pedido.longitudEntrega!,
-    );
-
-    final url =
-        'https://routing.openstreetmap.de/routed-foot/route/v1/foot/'
-        '${origen.longitude},${origen.latitude};'
-        '${destino.longitude},${destino.latitude}'
-        '?overview=full&geometries=geojson';
-
-    print('🗺️ [OSRM] Llamando: $url');
-
-    try {
-      final r = await http
-          .get(Uri.parse(url), headers: {'User-Agent': 'EmpanaTrack/1.0'})
-          .timeout(const Duration(seconds: 15));
-
-      print('🗺️ [OSRM] Status: ${r.statusCode}');
-
-      if (r.statusCode == 200) {
-        final data = jsonDecode(r.body);
-        final routes = data['routes'] as List?;
-        if (routes != null && routes.isNotEmpty) {
-          final coords = routes[0]['geometry']['coordinates'] as List;
-          final puntos = coords
-              .map(
-                (c) =>
-                    LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()),
-              )
-              .toList();
-          final dist = routes[0]['distance'] as num? ?? 0;
-          if (mounted) {
-            setState(() {
-              _rutaCalles = puntos;
-              _distanciaMetros = dist.toDouble();
-            });
-          }
-          print(
-            '✅ [OSRM] Ruta con ${puntos.length} puntos, '
-            '${dist.toStringAsFixed(0)}m',
-          );
-          _ajustarZoom(origen, destino);
-          _verificarCercania(destino);
-        }
-      } else {
-        print('❌ [OSRM] Error ${r.statusCode}: ${r.body}');
-        if (mounted) setState(() => _rutaCalles = [origen, destino]);
-        _ajustarZoom(origen, destino);
-      }
-    } catch (e) {
-      print('❌ [OSRM] Excepción: $e');
-      if (mounted) setState(() => _rutaCalles = [origen, destino]);
-      _ajustarZoom(origen, destino);
-    }
-  }
-
-  void _ajustarZoom(LatLng o, LatLng d) {
-    final minLat = min(o.latitude, d.latitude);
-    final maxLat = max(o.latitude, d.latitude);
-    final minLng = min(o.longitude, d.longitude);
-    final maxLng = max(o.longitude, d.longitude);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      try {
-        _mapCtrl.fitCamera(
-          CameraFit.bounds(
-            bounds: LatLngBounds(
-              LatLng(minLat - 0.003, minLng - 0.003),
-              LatLng(maxLat + 0.003, maxLng + 0.003),
-            ),
-            padding: const EdgeInsets.all(60),
-          ),
-        );
-      } catch (_) {}
-    });
-  }
-
-  void _verificarCercania(LatLng destino) {
-    if (_miPosicion == null) return;
-    final dist = _haversine(
-      _miPosicion!.latitude,
-      _miPosicion!.longitude,
-      destino.latitude,
-      destino.longitude,
-    );
-    if (dist <= _alerta && mounted && !_cercaDelFin) {
-      setState(() => _cercaDelFin = true);
-    }
-  }
-
-  double _haversine(double la1, double lo1, double la2, double lo2) {
-    const r = 6371000.0;
-    final dLat = _rad(la2 - la1);
-    final dLon = _rad(lo2 - lo1);
-    final a =
-        sin(dLat / 2) * sin(dLat / 2) +
-        cos(_rad(la1)) * cos(_rad(la2)) * sin(dLon / 2) * sin(dLon / 2);
-    return r * 2 * atan2(sqrt(a), sqrt(1 - a));
-  }
-
-  double _rad(double d) => d * pi / 180;
-
-  String _formatDist() {
-    if (_distanciaMetros == null) return '';
-    return _distanciaMetros! < 1000
-        ? '${_distanciaMetros!.toStringAsFixed(0)} m'
-        : '${(_distanciaMetros! / 1000).toStringAsFixed(1)} km';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final destino = widget.pedido.tieneCoordenadas
-        ? LatLng(widget.pedido.latitudEntrega!, widget.pedido.longitudEntrega!)
-        : null;
-    final centro = _miPosicion ?? destino ?? const LatLng(-1.66, -78.65);
-
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: AppColores.primary,
-        foregroundColor: Colors.white,
-        title: Text(
-          'Ruta — ${widget.pedido.clienteNombre}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          // Toggle seguir/libre
-          IconButton(
-            icon: Icon(
-              _siguiendoVendedor ? Icons.gps_fixed : Icons.gps_not_fixed,
-            ),
-            tooltip: _siguiendoVendedor
-                ? 'Siguiendo tu posición'
-                : 'Vista libre',
-            onPressed: () =>
-                setState(() => _siguiendoVendedor = !_siguiendoVendedor),
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () async {
-              setState(() {
-                _cargando = true;
-                _rutaCalles = [];
-                _cercaDelFin = false;
-              });
-              await _obtenerPosicion();
-              await _cargarRutaOSRM();
-              if (mounted) setState(() => _cargando = false);
-            },
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          FlutterMap(
-            mapController: _mapCtrl,
-            options: MapOptions(
-              initialCenter: centro,
-              initialZoom: 15,
-              onPositionChanged: (_, hasGesture) {
-                if (hasGesture && _siguiendoVendedor) {
-                  setState(() => _siguiendoVendedor = false);
-                }
-              },
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.empanatrack.app',
-              ),
-
-              // Ruta real por calles
-              if (_rutaCalles.length > 2)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: _rutaCalles,
-                      color: Colors.white,
-                      strokeWidth: 7,
-                      strokeCap: StrokeCap.round,
-                    ),
-                    Polyline(
-                      points: _rutaCalles,
-                      color: AppColores.primary,
-                      strokeWidth: 5,
-                      strokeCap: StrokeCap.round,
-                    ),
-                  ],
-                ),
-
-              // Fallback punteado
-              if (_rutaCalles.length == 2)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: _rutaCalles,
-                      color: AppColores.primary.withOpacity(0.5),
-                      strokeWidth: 3,
-                      strokeCap: StrokeCap.round,
-                      pattern: StrokePattern.dashed(segments: const [8, 4]),
-                    ),
-                  ],
-                ),
-
-              MarkerLayer(
-                markers: [
-                  // Posición vendedor (tiempo real)
-                  if (_miPosicion != null)
-                    Marker(
-                      point: _miPosicion!,
-                      width: 50,
-                      height: 50,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: AppColores.primary,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 3),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColores.primary.withOpacity(0.5),
-                              blurRadius: 10,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.directions_bike,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                      ),
-                    ),
-
-                  // Destino cliente
-                  if (destino != null)
-                    Marker(
-                      point: destino,
-                      width: 60,
-                      height: 70,
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColores.danger,
-                              borderRadius: BorderRadius.circular(8),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.2),
-                                  blurRadius: 4,
-                                ),
-                              ],
-                            ),
-                            child: Text(
-                              widget.pedido.clienteNombre.split(' ').first,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const Icon(
-                            Icons.location_on,
-                            color: AppColores.danger,
-                            size: 28,
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-
-          // Spinner
-          if (_cargando)
-            Positioned(
-              top: 16,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                      ),
-                    ],
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      SizedBox(width: 10),
-                      Text(
-                        'Calculando ruta...',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-          // Alerta cerca
-          if (_cercaDelFin && !_cargando)
-            Positioned(
-              top: 16,
-              left: 16,
-              right: 16,
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColores.success,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColores.success.withOpacity(0.4),
-                      blurRadius: 8,
-                    ),
-                  ],
-                ),
-                child: const Row(
-                  children: [
-                    Text('🎯', style: TextStyle(fontSize: 24)),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '¡Estás cerca!',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
-                          Text(
-                            'A menos de 500m del cliente.',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // Botón volver a centrar (cuando está en vista libre)
-          if (!_siguiendoVendedor && _miPosicion != null)
-            Positioned(
-              right: 16,
-              bottom: 180,
-              child: FloatingActionButton.small(
-                onPressed: () {
-                  setState(() => _siguiendoVendedor = true);
-                  _mapCtrl.move(_miPosicion!, _mapCtrl.camera.zoom);
-                },
-                backgroundColor: Colors.white,
-                child: const Icon(Icons.gps_fixed, color: AppColores.primary),
-              ),
-            ),
-
-          // Panel inferior
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: EdgeInsets.fromLTRB(
-                16,
-                16,
-                16,
-                MediaQuery.of(context).padding.bottom + 16,
-              ),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 12,
-                    offset: Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.person_outline,
-                        color: AppColores.primary,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          widget.pedido.clienteNombre,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: AppColores.textPrimary,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '\$${widget.pedido.total.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                          color: AppColores.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (widget.pedido.direccionEntrega != null) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.location_on_outlined,
-                          size: 14,
-                          color: AppColores.textSecond,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            widget.pedido.direccionEntrega!,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColores.textSecond,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color:
-                              (widget.pedido.tipoPago == 'contraentrega'
-                                      ? AppColores.success
-                                      : AppColores.primary)
-                                  .withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              widget.pedido.tipoPago == 'contraentrega'
-                                  ? Icons.payments_outlined
-                                  : Icons.account_balance_outlined,
-                              size: 14,
-                              color: widget.pedido.tipoPago == 'contraentrega'
-                                  ? AppColores.success
-                                  : AppColores.primary,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              widget.pedido.tipoPago == 'contraentrega'
-                                  ? 'Cobrar al entregar'
-                                  : 'Ya fue pagado',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: widget.pedido.tipoPago == 'contraentrega'
-                                    ? AppColores.success
-                                    : AppColores.primary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (_distanciaMetros != null) ...[
-                        const Spacer(),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.directions_walk,
-                              size: 14,
-                              color: AppColores.textSecond,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              _formatDist(),
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: AppColores.textSecond,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════
-//  HELPERS
-// ══════════════════════════════════════════════════════════
-String _formatFecha(DateTime fecha) {
-  final ahora = DateTime.now();
-  final diff = ahora.difference(fecha);
-
-  if (diff.inMinutes < 1) return 'Justo ahora';
-  if (diff.inMinutes < 60) return 'Hace ${diff.inMinutes} min';
-  if (diff.inHours < 24) return 'Hace ${diff.inHours} h';
-
-  return '${fecha.day.toString().padLeft(2, '0')}/'
-      '${fecha.month.toString().padLeft(2, '0')}/'
-      '${fecha.year}';
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1347,11 +616,7 @@ class _InfoChip extends StatelessWidget {
   final IconData icono;
   final String texto;
   final Color color;
-  const _InfoChip({
-    required this.icono,
-    required this.texto,
-    required this.color,
-  });
+  const _InfoChip({required this.icono, required this.texto, required this.color});
 
   @override
   Widget build(BuildContext context) => Container(
@@ -1365,21 +630,14 @@ class _InfoChip extends StatelessWidget {
       children: [
         Icon(icono, size: 12, color: color),
         const SizedBox(width: 4),
-        Text(
-          texto,
-          style: TextStyle(
-            fontSize: 11,
-            color: color,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        Text(texto, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
       ],
     ),
   );
 }
 
-class _SinPedidos extends StatelessWidget {
-  const _SinPedidos();
+class _SinReservas extends StatelessWidget {
+  const _SinReservas();
   @override
   Widget build(BuildContext context) => const Padding(
     padding: EdgeInsets.all(32),
@@ -1388,20 +646,9 @@ class _SinPedidos extends StatelessWidget {
         children: [
           Text('📭', style: TextStyle(fontSize: 52)),
           SizedBox(height: 16),
-          Text(
-            'Sin pedidos disponibles',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppColores.textPrimary,
-            ),
-          ),
+          Text('Sin reservas disponibles', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColores.textPrimary)),
           SizedBox(height: 8),
-          Text(
-            'Cuando un cliente haga un pedido\naparecerá aquí.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColores.textSecond),
-          ),
+          Text('Cuando un cliente haga una reserva\nde tu ruta aparecerá aquí.', textAlign: TextAlign.center, style: TextStyle(color: AppColores.textSecond)),
         ],
       ),
     ),
@@ -1409,8 +656,10 @@ class _SinPedidos extends StatelessWidget {
 }
 
 class _ErrorVista extends StatelessWidget {
+  final String mensaje;
   final VoidCallback onReintentar;
-  const _ErrorVista({required this.onReintentar});
+  const _ErrorVista({required this.mensaje, required this.onReintentar});
+
   @override
   Widget build(BuildContext context) => Center(
     child: Column(
@@ -1418,15 +667,21 @@ class _ErrorVista extends StatelessWidget {
       children: [
         const Text('⚠️', style: TextStyle(fontSize: 40)),
         const SizedBox(height: 12),
-        const Text(
-          'Error al cargar pedidos',
-          style: TextStyle(color: AppColores.textSecond),
-        ),
-        ElevatedButton(
-          onPressed: onReintentar,
-          child: const Text('Reintentar'),
-        ),
+        Text('Error: $mensaje', style: const TextStyle(color: AppColores.textSecond)),
+        const SizedBox(height: 12),
+        ElevatedButton(onPressed: onReintentar, child: const Text('Reintentar')),
       ],
     ),
   );
+}
+
+// ══════════════════════════════════════════════════════════
+//  HELPER FECHA
+// ══════════════════════════════════════════════════════════
+String _formatFecha(DateTime fecha) {
+  final diff = DateTime.now().difference(fecha);
+  if (diff.inMinutes < 1) return 'Justo ahora';
+  if (diff.inMinutes < 60) return 'Hace ${diff.inMinutes} min';
+  if (diff.inHours < 24) return 'Hace ${diff.inHours} h';
+  return '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year}';
 }
