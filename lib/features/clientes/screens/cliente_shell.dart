@@ -11,6 +11,17 @@ import 'package:geolocator/geolocator.dart';
 // ── Provider tab activo cliente ───────────────────────────
 final tabActivoClienteProvider = StateProvider<int>((ref) => 0);
 
+// ── Provider empresa del cliente ──────────────────────────
+final clienteEmpresaProvider =
+    FutureProvider<Map<String, dynamic>?>((ref) async {
+  try {
+    final r = await ApiClient.get('/clientes/mi-empresa');
+    return r.data as Map<String, dynamic>?;
+  } catch (_) {
+    return null;
+  }
+});
+
 // ── Modelo producto ───────────────────────────────────────
 class ProductoDisponible {
   final String  id;
@@ -331,8 +342,8 @@ class _ProductoCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final carrito  = ref.watch(carritoProvider);
-    final cantidad = carrito.cantidadDeProducto(producto.id);
+    final carrito   = ref.watch(carritoProvider);
+    final cantidad  = carrito.cantidadDeProducto(producto.id);
     final enCarrito = cantidad > 0;
 
     return Container(
@@ -677,7 +688,7 @@ class _ItemCarritoCard extends ConsumerWidget {
 }
 
 // ══════════════════════════════════════════════════════════
-//  PANTALLA CHECKOUT — solo GPS
+//  PANTALLA CHECKOUT — GPS + TIPO DE PEDIDO  ← PASO 13
 // ══════════════════════════════════════════════════════════
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
@@ -688,6 +699,7 @@ class CheckoutScreen extends ConsumerStatefulWidget {
 
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   String  _tipoPago      = 'contraentrega';
+  String  _tipoPedido    = 'normal';          // ← nuevo
   final   _notasCtrl     = TextEditingController();
   double? _latitud;
   double? _longitud;
@@ -754,11 +766,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
 
     await ref.read(crearPedidoProvider.notifier).crear(
-      items:    carrito.items,
-      tipoPago: _tipoPago,
-      latitud:  _latitud,
-      longitud: _longitud,
-      notas:    _notasCtrl.text.trim().isEmpty
+      items:      carrito.items,
+      tipoPago:   _tipoPago,
+      tipoPedido: _tipoPedido,             // ← nuevo
+      latitud:    _latitud,
+      longitud:   _longitud,
+      notas:      _notasCtrl.text.trim().isEmpty
           ? null : _notasCtrl.text.trim(),
     );
   }
@@ -844,8 +857,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   blurRadius: 6)],
             ),
             child: Column(children: [
-
-              // Items del carrito
               ...carrito.items.map((item) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(children: [
@@ -863,7 +874,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 ]),
               )),
 
-              // ── Desglose envío ────────────────────────
+              // Desglose envío
               Consumer(builder: (ctx, ref, _) {
                 final configAsync =
                     ref.watch(configuracionPagoProvider);
@@ -881,11 +892,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           const Text('Subtotal',
                               style: TextStyle(
                                   color: AppColores.textSecond)),
-                          Text(
-                            '\$${carrito.total.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                                color: AppColores.textSecond),
-                          ),
+                          Text('\$${carrito.total.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                  color: AppColores.textSecond)),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -896,11 +905,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           const Text('Envío 🚚',
                               style: TextStyle(
                                   color: AppColores.textSecond)),
-                          Text(
-                            '\$${envio.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                                color: AppColores.textSecond),
-                          ),
+                          Text('\$${envio.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                  color: AppColores.textSecond)),
                         ],
                       ),
                       const Divider(),
@@ -910,7 +917,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 );
               }),
 
-              // Fila total
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -941,21 +947,30 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           ),
           const SizedBox(height: 20),
 
+          // ── TIPO DE PEDIDO — PASO 13 ────────────────────
+          _SecTitulo('🛍️ Tipo de pedido'),
+          const SizedBox(height: 10),
+          _SelectorTipoPedido(
+            tipoSeleccionado: _tipoPedido,
+            onTipoChange: (t) => setState(() => _tipoPedido = t),
+          ),
+          const SizedBox(height: 20),
+
           // ── Tipo de pago ────────────────────────────────
           _SecTitulo('💳 Método de pago'),
           const SizedBox(height: 10),
           Row(children: [
             _OpcionPago(
-              label:     '🚚 Contraentrega',
-              sub:       'Pagas cuando recibes',
+              label:        '🚚 Contraentrega',
+              sub:          'Pagas cuando recibes',
               seleccionado: _tipoPago == 'contraentrega',
               onTap: () =>
                   setState(() => _tipoPago = 'contraentrega'),
             ),
             const SizedBox(width: 10),
             _OpcionPago(
-              label:     '🏦 Transferencia',
-              sub:       'Depósito anticipado',
+              label:        '🏦 Transferencia',
+              sub:          'Depósito anticipado',
               seleccionado: _tipoPago == 'transferencia',
               onTap: () =>
                   setState(() => _tipoPago = 'transferencia'),
@@ -966,8 +981,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           // ── Dirección de entrega ────────────────────────
           _SecTitulo('📍 Dirección de entrega'),
           const SizedBox(height: 10),
-
-          // Botón obtener GPS
           SizedBox(
             width:  double.infinity,
             height: 48,
@@ -1052,6 +1065,151 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 }
 
 // ══════════════════════════════════════════════════════════
+//  SELECTOR TIPO PEDIDO — PASO 13
+// ══════════════════════════════════════════════════════════
+class _SelectorTipoPedido extends ConsumerWidget {
+  final String           tipoSeleccionado;
+  final Function(String) onTipoChange;
+
+  const _SelectorTipoPedido({
+    required this.tipoSeleccionado,
+    required this.onTipoChange,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final empresaAsync = ref.watch(clienteEmpresaProvider);
+
+    return empresaAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error:   (_, __) => const SizedBox.shrink(),
+      data: (empresa) {
+        // Sin empresa → solo entrega a domicilio
+        if (empresa == null) {
+          return _InfoTipo(
+            icono: Icons.delivery_dining_rounded,
+            texto: 'Tu pedido será entregado a domicilio.',
+            color: AppColores.primary,
+          );
+        }
+
+        // Con empresa → elige Entrega o Reserva
+        return Column(children: [
+          Row(children: [
+            Expanded(child: _TipoBtn(
+              icono:  Icons.delivery_dining_rounded,
+              titulo: 'Entrega',
+              subtit: 'A domicilio',
+              activo: tipoSeleccionado == 'normal',
+              color:  AppColores.primary,
+              onTap:  () => onTipoChange('normal'),
+            )),
+            const SizedBox(width: 12),
+            Expanded(child: _TipoBtn(
+              icono:  Icons.bookmark_outlined,
+              titulo: 'Reserva',
+              subtit: empresa['nombre'] ?? 'Mi empresa',
+              activo: tipoSeleccionado == 'reserva',
+              color:  AppColores.accent,
+              onTap:  () => onTipoChange('reserva'),
+            )),
+          ]),
+          if (tipoSeleccionado == 'reserva') ...[
+            const SizedBox(height: 10),
+            _InfoTipo(
+              icono: Icons.info_outline_rounded,
+              texto: 'El vendedor de ${empresa['nombre']} '
+                     'te traerá tu pedido en su próxima visita.',
+              color: AppColores.accent,
+            ),
+          ],
+        ]);
+      },
+    );
+  }
+}
+
+class _TipoBtn extends StatelessWidget {
+  final IconData     icono;
+  final String       titulo;
+  final String       subtit;
+  final bool         activo;
+  final Color        color;
+  final VoidCallback onTap;
+
+  const _TipoBtn({
+    required this.icono,
+    required this.titulo,
+    required this.subtit,
+    required this.activo,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      padding:  const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: activo
+            ? color.withOpacity(0.08) : AppColores.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: activo ? color : Colors.grey.withOpacity(0.2),
+          width: activo ? 2 : 1,
+        ),
+      ),
+      child: Column(children: [
+        Icon(icono,
+            color: activo ? color : AppColores.textSecond,
+            size:  26),
+        const SizedBox(height: 6),
+        Text(titulo,
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize:   13,
+                color: activo ? color : AppColores.textPrimary)),
+        Text(subtit,
+            style: const TextStyle(
+                fontSize: 10, color: AppColores.textSecond),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis),
+      ]),
+    ),
+  );
+}
+
+class _InfoTipo extends StatelessWidget {
+  final IconData icono;
+  final String   texto;
+  final Color    color;
+
+  const _InfoTipo({
+    required this.icono,
+    required this.texto,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color:        color.withOpacity(0.06),
+      borderRadius: BorderRadius.circular(12),
+      border:       Border.all(color: color.withOpacity(0.2)),
+    ),
+    child: Row(children: [
+      Icon(icono, color: color, size: 16),
+      const SizedBox(width: 10),
+      Expanded(child: Text(texto,
+          style: TextStyle(fontSize: 12, color: color))),
+    ]),
+  );
+}
+
+// ══════════════════════════════════════════════════════════
 //  PANTALLA PAGO POR TRANSFERENCIA
 // ══════════════════════════════════════════════════════════
 class PagoTransferenciaScreen extends ConsumerWidget {
@@ -1078,7 +1236,6 @@ class PagoTransferenciaScreen extends ConsumerWidget {
         data: (config) => ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            // Instrucciones
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -1111,7 +1268,6 @@ class PagoTransferenciaScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
 
-            // Monto a pagar
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -1143,11 +1299,9 @@ class PagoTransferenciaScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
 
-            // Datos bancarios
             _DatosBancarios(config: config),
             const SizedBox(height: 20),
 
-            // Botón WhatsApp
             SizedBox(
               width:  double.infinity,
               height: 54,
@@ -1172,7 +1326,6 @@ class PagoTransferenciaScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 14),
 
-            // Botón confirmar
             SizedBox(
               width:  double.infinity,
               height: 54,
@@ -1222,7 +1375,6 @@ class PagoTransferenciaScreen extends ConsumerWidget {
         .replaceAll('+', '').replaceAll(' ', '');
     final encoded = Uri.encodeComponent(mensaje);
     final url     = 'https://wa.me/$numero?text=$encoded';
-
     _launchUrl(context, url);
   }
 
@@ -1248,34 +1400,32 @@ class _DatosBancarios extends StatelessWidget {
   const _DatosBancarios({required this.config});
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color:        Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8)],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('🏦 Datos bancarios',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: AppColores.textPrimary)),
-          const SizedBox(height: 12),
-          const Divider(),
-          const SizedBox(height: 8),
-          _FilaDato('Titular', config.cuentaTitular),
-          const SizedBox(height: 8),
-          _FilaDato('Cuenta',  config.cuentaBanco),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color:        Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      boxShadow: [BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 8)],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('🏦 Datos bancarios',
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: AppColores.textPrimary)),
+        const SizedBox(height: 12),
+        const Divider(),
+        const SizedBox(height: 8),
+        _FilaDato('Titular', config.cuentaTitular),
+        const SizedBox(height: 8),
+        _FilaDato('Cuenta',  config.cuentaBanco),
+      ],
+    ),
+  );
 }
 
 class _FilaDato extends StatelessWidget {
@@ -1284,20 +1434,18 @@ class _FilaDato extends StatelessWidget {
   const _FilaDato(this.label, this.valor);
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(
-            color: AppColores.textSecond, fontSize: 13)),
-        Flexible(child: Text(valor,
-            textAlign: TextAlign.right,
-            style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: AppColores.textPrimary))),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Text(label, style: const TextStyle(
+          color: AppColores.textSecond, fontSize: 13)),
+      Flexible(child: Text(valor,
+          textAlign: TextAlign.right,
+          style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColores.textPrimary))),
+    ],
+  );
 }
 
 // ══════════════════════════════════════════════════════════

@@ -17,6 +17,8 @@ import 'features/auth/providers/auth_provider.dart';
 
 import 'features/auth/screens/recuperar_contrasena_screen.dart';
 import 'features/auth/screens/registro_screen.dart';
+
+import 'features/repartidor/shell/repartidor_shell.dart';
 import 'features/ventas/screens/nueva_venta_screen.dart';
 import 'features/clientes/screens/clientes_screen.dart';
 import 'features/clientes/screens/registrar_pago_screen.dart';
@@ -120,6 +122,10 @@ class EmpanaTrackApp extends ConsumerWidget {
         GoRoute(
           path:    '/clientes',
           builder: (ctx, state) => const ClientesScreen(),
+        ),
+        GoRoute(
+        path: '/repartidor',
+        builder: (_, _) => const RepartidorShell(),
         ),
       ],
     );

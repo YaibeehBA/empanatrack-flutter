@@ -224,7 +224,7 @@ class CrearPedidoNotifier extends StateNotifier<CrearPedidoState> {
     String?                    direccion,
     double?                    latitud,
     double?                    longitud,
-    String?                    notas,
+    String?                    notas, required String tipoPedido,
   }) async {
     state = state.copyWith(cargando: true);
     try {

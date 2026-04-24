@@ -36,20 +36,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
+  /// Devuelve la ruta destino según el rol del usuario autenticado.
+  String _rutaPorRol(String rol) {
+    switch (rol) {
+      case 'vendedor':
+        return '/dashboard';
+      case 'administrador':
+        return '/admin';
+      case 'repartidor':
+        return '/repartidor';
+      case 'cliente':
+        return '/mi-cuenta';
+      default:
+        return '/mi-cuenta';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // ── Escuchar cambios en el estado de auth ─────────────────
     ref.listen<AuthState>(authProvider, (prev, next) {
       if (next.estado == AuthEstado.autenticado) {
-        // Redirigir según el rol
         final rol = next.sesion!.rol;
-        if (rol == 'vendedor') {
-          context.go('/dashboard');
-        } else if (rol == 'administrador') {
-          context.go('/admin');  // ← ADMIN va a /admin
-        } else if (rol == 'cliente') {
-          context.go('/mi-cuenta');
-        }
+        context.go(_rutaPorRol(rol));
       } else if (next.estado == AuthEstado.error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -172,10 +181,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                   ),
                 ),
-                
+
                 // ── ¿Olvidaste tu contraseña? ────────────────────────
                 const SizedBox(height: 16),
-                
+
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
@@ -202,7 +211,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       child: Text(
                         '¿No tienes cuenta?',
                         style: TextStyle(
-                          color:   Colors.grey.shade500,
+                          color:    Colors.grey.shade500,
                           fontSize: 13,
                         ),
                       ),
