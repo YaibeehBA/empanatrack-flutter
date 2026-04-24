@@ -23,12 +23,14 @@ class ConfiguracionPago {
   final String cuentaBanco;
   final String cuentaTitular;
   final String costoEnvio;
+
   const ConfiguracionPago({
     required this.whatsappNumero,
     required this.cuentaBanco,
     required this.cuentaTitular,
     required this.costoEnvio,
   });
+
   factory ConfiguracionPago.fromJson(Map<String, dynamic> j) =>
       ConfiguracionPago(
         whatsappNumero: j['whatsapp_numero'] ?? '',
@@ -40,23 +42,31 @@ class ConfiguracionPago {
 
 class PedidoCliente {
   final String  id;
+  final String  tipo;           // 'normal' | 'reserva'
   final String  estado;
   final String  tipoPago;
   final double  total;
+  final double  costoEnvio;
   final String? vendedorNombre;
+  final String? empresaNombre;
+  final String? empresaId;
   final String? direccionEntrega;
   final String? aceptadoEn;
   final String  creadoEn;
-  final double? latitudEntrega;   
-  final double? longitudEntrega;  
+  final double? latitudEntrega;
+  final double? longitudEntrega;
   final List<Map<String, dynamic>> items;
 
   const PedidoCliente({
     required this.id,
+    required this.tipo,
     required this.estado,
     required this.tipoPago,
     required this.total,
+    required this.costoEnvio,
     this.vendedorNombre,
+    this.empresaNombre,
+    this.empresaId,
     this.direccionEntrega,
     this.aceptadoEn,
     required this.creadoEn,
@@ -65,51 +75,55 @@ class PedidoCliente {
     this.longitudEntrega,
   });
 
-  factory PedidoCliente.fromJson(Map<String, dynamic> j) => PedidoCliente(
-    id:               j['id'],
-    estado:           j['estado'],
-    tipoPago:         j['tipo_pago'],
-    total:            (j['total'] as num).toDouble(),
-    vendedorNombre:   j['vendedor_nombre'],
-    direccionEntrega: j['direccion_entrega'],
-    latitudEntrega:  j['latitud_entrega']  != null
-      ? (j['latitud_entrega']  as num).toDouble() : null,
-    longitudEntrega: j['longitud_entrega'] != null
-      ? (j['longitud_entrega'] as num).toDouble() : null,
-    aceptadoEn:       j['aceptado_en'],
-    creadoEn:         j['creado_en'],
-    items: (j['items'] as List)
-        .map((i) => i as Map<String, dynamic>)
-        .toList(),
-  );
+  bool get esReserva => tipo == 'reserva';
+
+  String get tipoLabel =>
+      esReserva ? '📦 Reserva' : '🚚 Entrega';
+
+  factory PedidoCliente.fromJson(Map<String, dynamic> j) =>
+      PedidoCliente(
+        id:               j['id'],
+        tipo:             j['tipo'] ?? 'normal',
+        estado:           j['estado'],
+        tipoPago:         j['tipo_pago'],
+        total:            (j['total'] as num).toDouble(),
+        costoEnvio:       (j['costo_envio'] as num?)?.toDouble() ?? 0.0,
+        vendedorNombre:   j['vendedor_nombre'],
+        empresaNombre:    j['empresa_nombre'],
+        empresaId:        j['empresa_id'],
+        direccionEntrega: j['direccion_entrega'],
+        latitudEntrega:   j['latitud_entrega']  != null
+            ? (j['latitud_entrega']  as num).toDouble() : null,
+        longitudEntrega:  j['longitud_entrega'] != null
+            ? (j['longitud_entrega'] as num).toDouble() : null,
+        aceptadoEn:       j['aceptado_en'],
+        creadoEn:         j['creado_en'],
+        items: (j['items'] as List)
+            .map((i) => i as Map<String, dynamic>)
+            .toList(),
+      );
 
   String get estadoLabel {
     switch (estado) {
-      case 'pendiente':   return '⏳ Pendiente';
-      case 'aceptado':    return '✅ Aceptado';
-      case 'en_camino':   return '🚚 En camino';
-      case 'entregado':   return '🎉 Entregado';
-      case 'cancelado':   return '❌ Cancelado';
-      default:            return estado;
+      case 'pendiente': return '⏳ Pendiente';
+      case 'aceptado':  return '✅ Aceptado';
+      case 'en_camino': return '🚚 En camino';
+      case 'entregado': return '🎉 Entregado';
+      case 'cancelado': return '❌ Cancelado';
+      default:          return estado;
     }
   }
 }
 
 // ══════════════════════════════════════════════════════════
-//  CARRITO — StateNotifier
+//  CARRITO
 // ══════════════════════════════════════════════════════════
 class CarritoState {
   final List<ItemCarrito> items;
   const CarritoState({this.items = const []});
 
-  double get total =>
-      items.fold(0, (s, i) => s + i.subtotal);
-
-  int get cantidadTotal =>
-      items.fold(0, (s, i) => s + i.cantidad);
-
-  bool tieneProducto(String productoId) =>
-      items.any((i) => i.producto.id == productoId);
+  double get total      => items.fold(0, (s, i) => s + i.subtotal);
+  int get cantidadTotal => items.fold(0, (s, i) => s + i.cantidad);
 
   int cantidadDeProducto(String productoId) =>
       items.firstWhere(
@@ -127,7 +141,8 @@ class CarritoNotifier extends StateNotifier<CarritoState> {
 
   void agregar(ProductoDisponible producto) {
     final items = [...state.items];
-    final idx = items.indexWhere((i) => i.producto.id == producto.id);
+    final idx   = items.indexWhere(
+        (i) => i.producto.id == producto.id);
     if (idx >= 0) {
       items[idx] = items[idx].copyWith(
           cantidad: items[idx].cantidad + 1);
@@ -139,7 +154,8 @@ class CarritoNotifier extends StateNotifier<CarritoState> {
 
   void quitar(String productoId) {
     final items = [...state.items];
-    final idx = items.indexWhere((i) => i.producto.id == productoId);
+    final idx   = items.indexWhere(
+        (i) => i.producto.id == productoId);
     if (idx < 0) return;
     if (items[idx].cantidad > 1) {
       items[idx] = items[idx].copyWith(
@@ -215,30 +231,39 @@ class CrearPedidoState {
   );
 }
 
-class CrearPedidoNotifier extends StateNotifier<CrearPedidoState> {
+class CrearPedidoNotifier
+    extends StateNotifier<CrearPedidoState> {
   CrearPedidoNotifier() : super(const CrearPedidoState());
 
   Future<void> crear({
     required List<ItemCarrito> items,
     required String            tipoPago,
-    String?                    direccion,
+    required String            tipoPedido,
+    String?                    empresaId,   // ← obligatorio en reserva
     double?                    latitud,
     double?                    longitud,
-    String?                    notas, required String tipoPedido,
+    String?                    notas,
   }) async {
     state = state.copyWith(cargando: true);
     try {
-      final r = await ApiClient.post('/pedidos/', data: {
+      final body = <String, dynamic>{
         'items': items.map((i) => {
           'producto_id': i.producto.id,
           'cantidad':    i.cantidad,
         }).toList(),
-        'tipo_pago':         tipoPago,
-        'direccion_entrega': direccion,
-        'latitud_entrega':   latitud,
-        'longitud_entrega':  longitud,
-        'notas':             notas,
-      });
+        'tipo':             tipoPedido,
+        'tipo_pago':        tipoPago,
+        'latitud_entrega':  latitud,
+        'longitud_entrega': longitud,
+        'notas':            notas,
+      };
+
+      // El backend valida que reserva tenga empresa_id
+      if (tipoPedido == 'reserva' && empresaId != null) {
+        body['empresa_id'] = empresaId;
+      }
+
+      final r = await ApiClient.post('/pedidos/', data: body);
       state = state.copyWith(
         cargando: false,
         exitoso:  true,
@@ -246,7 +271,8 @@ class CrearPedidoNotifier extends StateNotifier<CrearPedidoState> {
       );
     } catch (e) {
       String msg = 'Error al crear el pedido.';
-      final match = RegExp(r'"detail":"([^"]+)"').firstMatch(e.toString());
+      final match =
+          RegExp(r'"detail":"([^"]+)"').firstMatch(e.toString());
       if (match != null) msg = match.group(1)!;
       state = state.copyWith(cargando: false, error: msg);
     }
@@ -256,6 +282,7 @@ class CrearPedidoNotifier extends StateNotifier<CrearPedidoState> {
 }
 
 final crearPedidoProvider =
-    StateNotifierProvider.autoDispose<CrearPedidoNotifier, CrearPedidoState>(
+    StateNotifierProvider.autoDispose<CrearPedidoNotifier,
+        CrearPedidoState>(
   (ref) => CrearPedidoNotifier(),
 );

@@ -4,6 +4,9 @@ import '../../../core/constants/colores.dart';
 import '../providers/pedidos_cliente_provider.dart';
 import '../screens/tracking_pedido_screen.dart';
 
+// ══════════════════════════════════════════════════════════
+//  PANTALLA MIS PEDIDOS
+// ══════════════════════════════════════════════════════════
 class PedidosClienteScreen extends ConsumerWidget {
   const PedidosClienteScreen({super.key});
 
@@ -61,6 +64,9 @@ class PedidosClienteScreen extends ConsumerWidget {
   }
 }
 
+// ══════════════════════════════════════════════════════════
+//  CARD PEDIDO
+// ══════════════════════════════════════════════════════════
 class _CardPedido extends StatelessWidget {
   final PedidoCliente pedido;
   const _CardPedido({required this.pedido});
@@ -85,13 +91,16 @@ class _CardPedido extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 8, offset: const Offset(0, 2))],
+            blurRadius: 8,
+            offset: const Offset(0, 2))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Encabezado
+
+          // ── Encabezado: estado + tipo + fecha ──────────
           Row(children: [
+            // Badge estado
             Container(
               padding: const EdgeInsets.symmetric(
                   horizontal: 10, vertical: 5),
@@ -101,20 +110,40 @@ class _CardPedido extends StatelessWidget {
               ),
               child: Text(pedido.estadoLabel,
                   style: TextStyle(
-                    color:      _colorEstado,
-                    fontWeight: FontWeight.bold,
-                    fontSize:   12,
-                  )),
+                      color:      _colorEstado,
+                      fontWeight: FontWeight.bold,
+                      fontSize:   12)),
             ),
+            const SizedBox(width: 8),
+
+            // Badge tipo (reserva / entrega)
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: pedido.esReserva
+                    ? AppColores.accent.withOpacity(0.10)
+                    : AppColores.primary.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(pedido.tipoLabel,
+                  style: TextStyle(
+                      color: pedido.esReserva
+                          ? AppColores.accent
+                          : AppColores.primary,
+                      fontWeight: FontWeight.w600,
+                      fontSize:   11)),
+            ),
+
             const Spacer(),
             Text(_formatFecha(pedido.creadoEn),
                 style: const TextStyle(
                     fontSize: 12,
-                    color: AppColores.textSecond)),
+                    color:    AppColores.textSecond)),
           ]),
           const SizedBox(height: 12),
 
-          // Items
+          // ── Items ──────────────────────────────────────
           ...pedido.items.map((item) => Padding(
             padding: const EdgeInsets.symmetric(vertical: 3),
             child: Row(children: [
@@ -130,45 +159,87 @@ class _CardPedido extends StatelessWidget {
                 '\$${(item['subtotal'] as num).toStringAsFixed(2)}',
                 style: const TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: AppColores.textPrimary),
+                    color:      AppColores.textPrimary),
               ),
             ]),
           )),
 
           const Divider(height: 20),
 
-          // Total + tipo pago
+          // ── Desglose costo envío ───────────────────────
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(children: [
-                Icon(
-                  pedido.tipoPago == 'transferencia'
-                      ? Icons.account_balance
-                      : Icons.delivery_dining,
-                  size: 16, color: AppColores.textSecond,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  pedido.tipoPago == 'transferencia'
-                      ? 'Transferencia' : 'Contraentrega',
-                  style: const TextStyle(
+              const Text('Envío',
+                  style: TextStyle(
                       fontSize: 13,
-                      color: AppColores.textSecond),
-                ),
-              ]),
+                      color:    AppColores.textSecond)),
+              pedido.esReserva
+                  // Reserva → siempre gratis
+                  ? const Text('Gratis',
+                      style: TextStyle(
+                          fontSize:   13,
+                          fontWeight: FontWeight.bold,
+                          color:      AppColores.success))
+                  // Entrega → mostrar costo_envio del backend
+                  : Text(
+                      '\$${pedido.costoEnvio.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                          fontSize: 13,
+                          color:    AppColores.textSecond)),
+            ],
+          ),
+          const SizedBox(height: 6),
+
+          // ── Total + método de pago ─────────────────────
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Método de pago (oculto en reserva)
+              if (!pedido.esReserva)
+                Row(children: [
+                  Icon(
+                    pedido.tipoPago == 'transferencia'
+                        ? Icons.account_balance
+                        : Icons.delivery_dining,
+                    size: 16, color: AppColores.textSecond,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    pedido.tipoPago == 'transferencia'
+                        ? 'Transferencia' : 'Contraentrega',
+                    style: const TextStyle(
+                        fontSize: 13,
+                        color:    AppColores.textSecond),
+                  ),
+                ])
+              else
+                // En reserva mostrar empresa si existe
+                Row(children: [
+                  const Icon(Icons.store_outlined,
+                      size: 16, color: AppColores.accent),
+                  const SizedBox(width: 6),
+                  Text(
+                    pedido.empresaNombre ?? 'Reserva',
+                    style: const TextStyle(
+                        fontSize:   13,
+                        color:      AppColores.accent,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ]),
+
+              // Total
               Text(
                 '\$${pedido.total.toStringAsFixed(2)}',
                 style: const TextStyle(
-                  fontSize:   18,
-                  fontWeight: FontWeight.bold,
-                  color:      AppColores.primary,
-                ),
+                    fontSize:   18,
+                    fontWeight: FontWeight.bold,
+                    color:      AppColores.primary),
               ),
             ],
           ),
 
-          // Vendedor asignado
+          // ── Vendedor asignado ──────────────────────────
           if (pedido.vendedorNombre != null) ...[
             const SizedBox(height: 8),
             Row(children: [
@@ -177,14 +248,16 @@ class _CardPedido extends StatelessWidget {
               const SizedBox(width: 6),
               Text('Vendedor: ${pedido.vendedorNombre}',
                   style: const TextStyle(
-                      fontSize: 12, color: AppColores.success,
+                      fontSize:   12,
+                      color:      AppColores.success,
                       fontWeight: FontWeight.w600)),
             ]),
           ],
 
-          // Botón ver repartidor en mapa
-          if (pedido.estado == 'en_camino' ||
-              pedido.estado == 'aceptado') ...[
+          // ── Botón tracking (solo entrega en camino) ────
+          if (!pedido.esReserva &&
+              (pedido.estado == 'en_camino' ||
+               pedido.estado == 'aceptado')) ...[
             const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
@@ -198,13 +271,16 @@ class _CardPedido extends StatelessWidget {
                 ),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColores.success,
-                  side: const BorderSide(color: AppColores.success),
+                  side: const BorderSide(
+                      color: AppColores.success),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
                 ),
-                icon:  const Icon(Icons.delivery_dining, size: 18),
+                icon:  const Icon(Icons.delivery_dining,
+                    size: 18),
                 label: const Text('Ver repartidor en mapa',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -216,17 +292,24 @@ class _CardPedido extends StatelessWidget {
   String _formatFecha(String f) {
     try {
       final dt    = DateTime.parse(f).toLocal();
-      const meses = ['','Ene','Feb','Mar','Abr','May','Jun',
-                     'Jul','Ago','Sep','Oct','Nov','Dic'];
+      const meses = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May',
+                     'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov',
+                     'Dic'];
       return '${dt.day} ${meses[dt.month]}, '
-             '${dt.hour.toString().padLeft(2,'0')}:'
-             '${dt.minute.toString().padLeft(2,'0')}';
-    } catch (_) { return f; }
+             '${dt.hour.toString().padLeft(2, '0')}:'
+             '${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return f;
+    }
   }
 }
 
+// ══════════════════════════════════════════════════════════
+//  SIN PEDIDOS
+// ══════════════════════════════════════════════════════════
 class _SinPedidos extends StatelessWidget {
   const _SinPedidos();
+
   @override
   Widget build(BuildContext context) => const Center(
     child: Column(
@@ -236,8 +319,9 @@ class _SinPedidos extends StatelessWidget {
         SizedBox(height: 16),
         Text('No tienes pedidos aún',
             style: TextStyle(
-                fontSize: 18, fontWeight: FontWeight.bold,
-                color: AppColores.textPrimary)),
+                fontSize:   18,
+                fontWeight: FontWeight.bold,
+                color:      AppColores.textPrimary)),
         SizedBox(height: 8),
         Text('Ve a Productos y haz tu primer pedido.',
             style: TextStyle(color: AppColores.textSecond)),
