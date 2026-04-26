@@ -485,9 +485,11 @@ class _ListaProductos extends StatelessWidget {
     required this.onAgregar,
   });
 
-  int _stockRestante(String productoId) =>
-      stockDisponible[productoId] ?? 999;
-
+  
+  int _stockRestante(String productoId) {
+    if (stockDisponible.isEmpty) return 999; 
+    return stockDisponible[productoId] ?? 0; 
+  }
   int _cantidadEn(String productoId) {
     final item = carrito.where((i) => i.producto.id == productoId);
     return item.isEmpty ? 0 : item.first.cantidad;
@@ -499,8 +501,8 @@ class _ListaProductos extends StatelessWidget {
       children: productos.map((p) {
         final cantidad = _cantidadEn(p.id);
         final restante = _stockRestante(p.id);
-        final agotado  = restante <= 0;
-        final enLimite = cantidad >= restante;
+        final agotado  = stockDisponible.isNotEmpty && restante <= 0;
+        final enLimite = !agotado && cantidad >= restante;
 
         return Container(
           margin:  const EdgeInsets.only(bottom: 10),

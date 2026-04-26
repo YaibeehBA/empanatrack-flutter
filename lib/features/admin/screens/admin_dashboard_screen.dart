@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/colores.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../providers/admin_provider.dart';
+import 'repartidores_screen.dart';
 
 class AdminDashboardScreen extends ConsumerWidget {
   const AdminDashboardScreen({super.key});
@@ -70,6 +71,17 @@ class AdminDashboardScreen extends ConsumerWidget {
               subtitulo: 'Crear y administrar vendedores',
               color: AppColores.accent,
               onTap: () => context.push('/admin/vendedores'),
+            ),
+            _MenuCard(
+              icono: '🚚', titulo: 'Repartidores',
+              subtitulo: 'Gestiona el equipo de entrega',
+              color: AppColores.accent,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const RepartidoresScreen(),
+                ),
+              ),
             ),
             _MenuCard(
               icono: '🏪', titulo: 'Clientes',

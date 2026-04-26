@@ -32,6 +32,35 @@ class VendedorAdmin {
   );
 }
 
+// ── NUEVO: Modelo repartidor ──────────────────────────────
+class RepartidorAdmin {
+  final String  id;
+  final String  nombreCompleto;
+  final String? telefono;
+  final String? nombreUsuario;  
+  final String? correo;         
+  final bool    estaActivo;
+
+  const RepartidorAdmin({
+    required this.id,
+    required this.nombreCompleto,
+    this.telefono,
+    this.nombreUsuario,
+    this.correo,
+    required this.estaActivo,
+  });
+
+  factory RepartidorAdmin.fromJson(Map<String, dynamic> j) =>
+      RepartidorAdmin(
+        id:             j['id'],
+        nombreCompleto: j['nombre_completo'],
+        telefono:       j['telefono'],
+        nombreUsuario:  j['nombre_usuario'],  
+        correo:         j['correo'],          
+        estaActivo:     j['esta_activo'] ?? true,
+      );
+}
+
 class EmpresaAdmin {
   final String  id;
   final String  nombre;
@@ -64,7 +93,6 @@ class EmpresaAdmin {
   );
 }
 
-// ── ProductoAdmin con imagenUrl ───────────────────────────
 class ProductoAdmin {
   final String  id;
   final String  nombre;
@@ -95,7 +123,6 @@ class ResumenAdmin {
   final int    vendedoresActivos;
   final double vendidoHoy;
   final int    ventasHoy;
-  // Pedidos — NUEVO
   final int    pedidosHoy;
   final int    pedidosPendientes;
   final int    pedidosEntregados;
@@ -128,19 +155,37 @@ class ResumenAdmin {
 
 // ── Providers de lectura ──────────────────────────────────
 
-final vendedoresAdminProvider = FutureProvider<List<VendedorAdmin>>((ref) async {
+final vendedoresAdminProvider =
+    FutureProvider<List<VendedorAdmin>>((ref) async {
   final r = await ApiClient.get('/admin/vendedores');
-  return (r.data as List).map((v) => VendedorAdmin.fromJson(v)).toList();
+  return (r.data as List)
+      .map((v) => VendedorAdmin.fromJson(v))
+      .toList();
 });
 
-final empresasAdminProvider = FutureProvider<List<EmpresaAdmin>>((ref) async {
+// ── NUEVO: Provider repartidores ──────────────────────────
+final repartidoresAdminProvider =
+    FutureProvider<List<RepartidorAdmin>>((ref) async {
+  final r = await ApiClient.get('/admin/repartidores');
+  return (r.data as List)
+      .map((r) => RepartidorAdmin.fromJson(r))
+      .toList();
+});
+
+final empresasAdminProvider =
+    FutureProvider<List<EmpresaAdmin>>((ref) async {
   final r = await ApiClient.get('/admin/empresas');
-  return (r.data as List).map((e) => EmpresaAdmin.fromJson(e)).toList();
+  return (r.data as List)
+      .map((e) => EmpresaAdmin.fromJson(e))
+      .toList();
 });
 
-final productosAdminProvider = FutureProvider<List<ProductoAdmin>>((ref) async {
+final productosAdminProvider =
+    FutureProvider<List<ProductoAdmin>>((ref) async {
   final r = await ApiClient.get('/admin/productos');
-  return (r.data as List).map((p) => ProductoAdmin.fromJson(p)).toList();
+  return (r.data as List)
+      .map((p) => ProductoAdmin.fromJson(p))
+      .toList();
 });
 
 final resumenAdminProvider = FutureProvider<ResumenAdmin>((ref) async {
@@ -179,7 +224,6 @@ class AdminOpState {
 class AdminOpNotifier extends StateNotifier<AdminOpState> {
   AdminOpNotifier() : super(const AdminOpState());
 
-  // ── crearProducto guarda el id ─────────────────────────
   Future<void> crearProducto(Map<String, dynamic> datos) async {
     state = state.copyWith(cargando: true);
     try {
@@ -190,10 +234,8 @@ class AdminOpNotifier extends StateNotifier<AdminOpState> {
         ultimoId: r.data['id'].toString(),
       );
     } catch (e) {
-      String msg = 'Error en la operación.';
-      final match = RegExp(r'"detail":"([^"]+)"').firstMatch(e.toString());
-      if (match != null) msg = match.group(1)!;
-      state = state.copyWith(cargando: false, error: msg);
+      state = state.copyWith(
+          cargando: false, error: _parseError(e));
     }
   }
 
@@ -207,10 +249,8 @@ class AdminOpNotifier extends StateNotifier<AdminOpState> {
       state = state.copyWith(cargando: false);
       return r.data['data'] as Map<String, dynamic>;
     } catch (e) {
-      String msg = 'No se pudo extraer coordenadas.';
-      final match = RegExp(r'"detail":"([^"]+)"').firstMatch(e.toString());
-      if (match != null) msg = match.group(1)!;
-      state = state.copyWith(cargando: false, error: msg);
+      state = state.copyWith(
+          cargando: false, error: _parseError(e));
       return null;
     }
   }
@@ -218,17 +258,14 @@ class AdminOpNotifier extends StateNotifier<AdminOpState> {
   Future<void> editarProducto(String id, Map<String, dynamic> datos) =>
       _ejecutar(() => ApiClient.put('/admin/productos/$id', data: datos));
 
-  // ── eliminarProducto ───────────────────────────────────
   Future<void> eliminarProducto(String id) async {
     state = state.copyWith(cargando: true);
     try {
       await ApiClient.delete('/admin/productos/$id');
       state = state.copyWith(cargando: false, exitoso: true);
     } catch (e) {
-      String msg = 'Error al eliminar.';
-      final match = RegExp(r'"detail":"([^"]+)"').firstMatch(e.toString());
-      if (match != null) msg = match.group(1)!;
-      state = state.copyWith(cargando: false, error: msg);
+      state = state.copyWith(
+          cargando: false, error: _parseError(e));
     }
   }
 
@@ -245,15 +282,30 @@ class AdminOpNotifier extends StateNotifier<AdminOpState> {
       _ejecutar(() => ApiClient.post('/admin/vendedores', data: datos));
 
   Future<void> editarVendedor(String id, Map<String, dynamic> datos) =>
-      _ejecutar(() => ApiClient.put('/admin/vendedores/$id', data: datos));
+      _ejecutar(
+          () => ApiClient.put('/admin/vendedores/$id', data: datos));
 
   Future<void> crearEmpresa(Map<String, dynamic> datos) =>
       _ejecutar(() => ApiClient.post('/admin/empresas', data: datos));
 
   Future<void> editarEmpresa(String id, Map<String, dynamic> datos) =>
-      _ejecutar(() => ApiClient.put('/admin/empresas/$id', data: datos));
+      _ejecutar(
+          () => ApiClient.put('/admin/empresas/$id', data: datos));
 
-  // ── subir imagen a un producto existente ───────────────
+  // ── NUEVO: operaciones repartidor ─────────────────────
+  Future<void> crearRepartidor(Map<String, dynamic> datos) =>
+      _ejecutar(
+          () => ApiClient.post('/admin/repartidores', data: datos));
+
+  Future<void> editarRepartidor(
+          String id, Map<String, dynamic> datos) =>
+      _ejecutar(
+          () => ApiClient.put('/admin/repartidores/$id', data: datos));
+
+  Future<void> eliminarRepartidor(String id) =>
+      _ejecutar(
+          () => ApiClient.delete('/admin/repartidores/$id'));
+
   Future<void> subirImagenProducto(String id, XFile imagen) async {
     state = state.copyWith(cargando: true);
     try {
@@ -269,14 +321,11 @@ class AdminOpNotifier extends StateNotifier<AdminOpState> {
       );
       state = state.copyWith(cargando: false, exitoso: true);
     } catch (e) {
-      String msg = 'Error al subir la imagen.';
-      final match = RegExp(r'"detail":"([^"]+)"').firstMatch(e.toString());
-      if (match != null) msg = match.group(1)!;
-      state = state.copyWith(cargando: false, error: msg);
+      state = state.copyWith(
+          cargando: false, error: _parseError(e));
     }
   }
 
-  // ── actualizar configuración ───────────────────────────
   Future<void> actualizarConfiguracion(
       String clave, String valor) async {
     state = state.copyWith(cargando: true);
@@ -287,11 +336,8 @@ class AdminOpNotifier extends StateNotifier<AdminOpState> {
       );
       state = state.copyWith(cargando: false, exitoso: true);
     } catch (e) {
-      String msg = 'Error al actualizar configuración.';
-      final match =
-          RegExp(r'"detail":"([^"]+)"').firstMatch(e.toString());
-      if (match != null) msg = match.group(1)!;
-      state = state.copyWith(cargando: false, error: msg);
+      state = state.copyWith(
+          cargando: false, error: _parseError(e));
     }
   }
 
@@ -301,11 +347,15 @@ class AdminOpNotifier extends StateNotifier<AdminOpState> {
       await accion();
       state = state.copyWith(cargando: false, exitoso: true);
     } catch (e) {
-      String msg = 'Error en la operación.';
-      final match = RegExp(r'"detail":"([^"]+)"').firstMatch(e.toString());
-      if (match != null) msg = match.group(1)!;
-      state = state.copyWith(cargando: false, error: msg);
+      state = state.copyWith(
+          cargando: false, error: _parseError(e));
     }
+  }
+
+  String _parseError(Object e) {
+    final m =
+        RegExp(r'"detail":"([^"]+)"').firstMatch(e.toString());
+    return m?.group(1) ?? 'Error en la operación.';
   }
 
   void resetear() => state = const AdminOpState();
@@ -316,7 +366,6 @@ final adminOpProvider =
   (ref) => AdminOpNotifier(),
 );
 
-// ── Modelo configuración ──────────────────────────────────
 class ConfiguracionNegocio {
   final String  clave;
   final String  valor;
@@ -336,7 +385,6 @@ class ConfiguracionNegocio {
       );
 }
 
-// ── Provider de configuración ─────────────────────────────
 final configuracionAdminProvider =
     FutureProvider<List<ConfiguracionNegocio>>((ref) async {
   final r = await ApiClient.get('/admin/configuracion');

@@ -217,6 +217,7 @@ class ProductoStockRestante {
   final int     cantidadInicial;
   final int     cantidadVendida;
   final int     cantidadRestante;
+  final bool    enStockHoy;       // ← NUEVO
 
   const ProductoStockRestante({
     required this.productoId,
@@ -226,6 +227,7 @@ class ProductoStockRestante {
     required this.cantidadInicial,
     required this.cantidadVendida,
     required this.cantidadRestante,
+    this.enStockHoy = true,       // ← NUEVO
   });
 
   factory ProductoStockRestante.fromJson(Map<String, dynamic> j) =>
@@ -234,9 +236,10 @@ class ProductoStockRestante {
         nombre:           j['nombre'],
         precio:           (j['precio'] as num).toDouble(),
         imagenUrl:        j['imagen_url'],
-        cantidadInicial:  j['cantidad_inicial'],
-        cantidadVendida:  j['cantidad_vendida'],
-        cantidadRestante: j['cantidad_restante'],
+        cantidadInicial:  j['cantidad_inicial']  ?? 0,
+        cantidadVendida:  j['cantidad_vendida']   ?? 0,
+        cantidadRestante: j['cantidad_restante']  ?? 0,
+        enStockHoy:       j['en_stock_hoy']       ?? true,
       );
 }
 
