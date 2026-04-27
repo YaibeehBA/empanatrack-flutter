@@ -6,6 +6,7 @@ import '../providers/pedidos_cliente_provider.dart';
 import 'mi_cuenta_screen.dart';
 import 'pedidos_cliente_screen.dart';
 import 'productos_screen.dart';
+import 'mapa_vendedor_screen.dart';
 
 // ══════════════════════════════════════════════════════════
 //  PROVIDERS COMPARTIDOS DEL MÓDULO CLIENTE
@@ -80,6 +81,7 @@ class ClienteShell extends ConsumerWidget {
       MiCuentaScreen(),
       ProductosScreen(),
       PedidosClienteScreen(),
+      MapaVendedorScreen(),
     ];
 
     return Scaffold(
@@ -140,6 +142,13 @@ class _BottomNav extends StatelessWidget {
               badge:       badgeCarrito,
               onTap:       () => onTabChange(1),
             ),
+            _NavItem(
+                icono:       Icons.map_outlined,
+                iconoActivo: Icons.map_rounded,
+                label:       'Mi Vendedor',
+                activo:      tabActivo == 3,
+                onTap:       () => onTabChange(3),
+              ),
             _NavItem(
               icono:       Icons.receipt_long_outlined,
               iconoActivo: Icons.receipt_long_rounded,

@@ -10,9 +10,11 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import '../../../../core/constants/colores.dart';
 import '../../../../core/network/api_client.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../models/ruta_activa_models.dart';
 import '../providers/ruta_activa_provider.dart';
 import '../shell/shell_providers.dart';
+import '../../../core/services/ubicacion_service.dart';
 import '../widgets/ruta_header.dart';
 import '../widgets/toast_alerta.dart';
 import '../widgets/empresa_marker.dart';
@@ -85,6 +87,7 @@ class _MapaRutaScreenState extends ConsumerState<MapaRutaScreen> {
   @override
   void dispose() {
     _gpsSub?.cancel();
+    UbicacionRutaVendedorService().detener();
     _mapCtrl.dispose();
     super.dispose();
   }
@@ -128,11 +131,21 @@ class _MapaRutaScreenState extends ConsumerState<MapaRutaScreen> {
         return;
       }
 
-      if (estado.sesion == null) {
+     if (estado.sesion == null) {
         setState(() => _fase = FaseRuta.listo);
-      } else {
+      } 
+      else {
         _sesionId = estado.sesion!.id;
         setState(() => _fase = FaseRuta.enRuta);
+      
+      final sesion = ref.read(authProvider).sesion;
+        if (sesion != null) {
+          UbicacionRutaVendedorService().iniciar(
+            token: sesion.token,
+            baseUrl: ApiClient.baseUrl,
+            sesionId: _sesionId!,
+          );
+        }
       }
 
       _iniciarGPS();
@@ -165,21 +178,27 @@ class _MapaRutaScreenState extends ConsumerState<MapaRutaScreen> {
   }
 
   void _iniciarGPS() {
-    _gpsSub?.cancel();
-    _gpsSub =
-        Geolocator.getPositionStream(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 5, // actualizar cada 5m para mayor precisión
-          ),
-        ).listen((pos) {
-          if (!mounted) return;
-          final nueva = LatLng(pos.latitude, pos.longitude);
-          setState(() => _miPosicion = nueva);
-          if (_siguiendo) _mapCtrl.move(nueva, _mapCtrl.camera.zoom);
-          _verificarProximidad(nueva);
-        });
-  }
+  _gpsSub?.cancel();
+  _gpsSub =
+      Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 5,
+        ),
+      ).listen((pos) {
+        if (!mounted) return;
+        final nueva = LatLng(pos.latitude, pos.longitude);
+        setState(() => _miPosicion = nueva);
+        if (_siguiendo) _mapCtrl.move(nueva, _mapCtrl.camera.zoom);
+        _verificarProximidad(nueva);
+        
+        // ← NUEVO: transmitir posición para clientes
+        if (_fase == FaseRuta.enRuta && _sesionId != null) {
+          UbicacionRutaVendedorService()
+              .enviarPosicion(pos.latitude, pos.longitude);
+        }
+      });
+}
 
   // ══════════════════════════════════════════════════════
   //  OPTIMIZACIÓN DE RUTA
@@ -516,7 +535,7 @@ class _MapaRutaScreenState extends ConsumerState<MapaRutaScreen> {
         _empresaCercana = empCercana;
         _llegadaEmpresa = llegada;
       });
-      if (llegadaBackend == null) _registrarLlegada(empCercana!);
+      if (llegadaBackend == null) _registrarLlegada(empCercana);
     }
   }
 
@@ -669,7 +688,7 @@ class _MapaRutaScreenState extends ConsumerState<MapaRutaScreen> {
 
   Future<void> _completarRuta() async {
     if (_sesionId == null) return;
-
+    UbicacionRutaVendedorService().detener();
     final success = await ref
         .read(rutaAccionProvider.notifier)
         .completarRuta(_sesionId!);

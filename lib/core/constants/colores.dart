@@ -15,4 +15,7 @@ class AppColores {
   // Textos
   static const textPrimary = Color(0xFF2C3E50);
   static const textSecond  = Color(0xFF7F8C8D);
+
+  // Error usa el mismo color que danger
+  static Color get error => danger;
 }
