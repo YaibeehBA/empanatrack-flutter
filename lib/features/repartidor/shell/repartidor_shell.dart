@@ -8,7 +8,6 @@ import '../../pedidos/screens/pedidos_repartidor_screen.dart';
 import '../../pedidos/providers/pedidos_providers.dart';
 import '../screens/historial_repartidor_screen.dart';
 
-// Provider para controlar la pestaña activa
 final _tabProvider = StateProvider<int>((ref) => 0);
 
 class RepartidorShell extends ConsumerWidget {
@@ -32,37 +31,6 @@ class RepartidorShell extends ConsumerWidget {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
-          // Badge pedidos disponibles
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined),
-                onPressed: () {},
-              ),
-              if (pedidosCount > 0)
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: const BoxDecoration(
-                      color: AppColores.danger,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      '$pedidosCount',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          // Logout
           IconButton(
             icon: const Icon(Icons.logout_rounded),
             onPressed: () async {
@@ -70,9 +38,7 @@ class RepartidorShell extends ConsumerWidget {
                 context: context,
                 builder: (_) => AlertDialog(
                   title: const Text('Cerrar sesión'),
-                  content: const Text(
-                    '¿Estás seguro que deseas cerrar sesión?',
-                  ),
+                  content: const Text('¿Estás seguro que deseas cerrar sesión?'),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context, false),
@@ -107,16 +73,11 @@ class RepartidorShell extends ConsumerWidget {
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          border: Border(
-            top: BorderSide(color: const Color(0xFFE8ECF0)),
-          ),
+          border: Border(top: BorderSide(color: const Color(0xFFE8ECF0))),
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 8,
-              vertical: 8,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -126,16 +87,14 @@ class RepartidorShell extends ConsumerWidget {
                   label: 'Pedidos',
                   activo: tab == 0,
                   badge: pedidosCount,
-                  onTap: () =>
-                      ref.read(_tabProvider.notifier).state = 0,
+                  onTap: () => ref.read(_tabProvider.notifier).state = 0,
                 ),
                 _NavItem(
                   icono: Icons.history_rounded,
                   iconoActivo: Icons.history_rounded,
                   label: 'Historial',
                   activo: tab == 1,
-                  onTap: () =>
-                      ref.read(_tabProvider.notifier).state = 1,
+                  onTap: () => ref.read(_tabProvider.notifier).state = 1,
                 ),
               ],
             ),
@@ -146,7 +105,6 @@ class RepartidorShell extends ConsumerWidget {
   }
 }
 
-// Widget para cada ítem de la navegación inferior
 class _NavItem extends StatelessWidget {
   final IconData icono;
   final IconData iconoActivo;
@@ -180,7 +138,8 @@ class _NavItem extends StatelessWidget {
                 color: activo ? AppColores.primary : Colors.grey.shade600,
                 size: 26,
               ),
-              if (badge > 0 && !activo)
+              // El badge aparece en el ícono de Pedidos
+              if (badge > 0 && label == 'Pedidos')
                 Positioned(
                   top: -4,
                   right: -8,
@@ -190,10 +149,7 @@ class _NavItem extends StatelessWidget {
                       color: AppColores.danger,
                       shape: BoxShape.circle,
                     ),
-                    constraints: const BoxConstraints(
-                      minWidth: 18,
-                      minHeight: 18,
-                    ),
+                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                     child: Text(
                       '$badge',
                       style: const TextStyle(
