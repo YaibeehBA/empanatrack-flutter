@@ -93,7 +93,6 @@ class PedidoVendedor {
 
 // ══════════════════════════════════════════════════════════
 //  HELPER GLOBAL — parsear errores Dio
-//  Se puede importar desde otras pantallas también
 // ══════════════════════════════════════════════════════════
 
 /// Extrae el mensaje legible desde excepciones de Dio / FastAPI.
@@ -290,12 +289,12 @@ class AceptarReservaNotifier extends StateNotifier<AceptarReservaState> {
 
   /// Actualizar estado de una reserva aceptada.
   /// Si el nuevo estado es 'cancelado' se llama a /liberar-reserva
-  /// para que el backend también devuelva el stock. (FIX punto 4)
+  /// para que el backend también devuelva el stock.
   Future<void> actualizarEstado(String pedidoId, String nuevoEstado) async {
     state = state.copyWith(cargando: true);
     try {
       if (nuevoEstado == 'cancelado') {
-        // ✅ CORREGIDO: liberar-reserva cancela Y libera stock
+        // ✅ liberar-reserva cancela Y libera stock
         await ApiClient.post('/pedidos/$pedidoId/liberar-reserva');
       } else {
         await ApiClient.put(
@@ -379,6 +378,21 @@ class ReservasMapaNotifier extends StateNotifier<void> {
 
   StreamSubscription? _wsSub;
 
+  // ── Helper: invalida reservasEmpresaProvider para un empresaId
+  // concreto, o toda la family si no se conoce el ID.
+  // Esto cubre el caso en que el backend omite empresa_id en el
+  // evento (p.ej. reserva_entregada disparado por el vendedor mismo).
+  void _invalidarEmpresa(String? empresaId) {
+    if (empresaId != null) {
+      _ref.invalidate(reservasEmpresaProvider(empresaId));
+    } else {
+      // ✅ FIX: fallback — invalida TODA la family para que cualquier
+      // instancia activa (p.ej. la que tiene abierta EntregarReservaScreen)
+      // recargue aunque el mensaje WS no traiga empresa_id.
+      _ref.invalidate(reservasEmpresaProvider);
+    }
+  }
+
   void _escucharWs() {
     _wsSub?.cancel();
     _wsSub = WebSocketService().mensajes.listen((msg) {
@@ -386,46 +400,39 @@ class ReservasMapaNotifier extends StateNotifier<void> {
       final empresaId = msg['empresa_id'] as String?;
 
       switch (tipo) {
+
         case 'reserva_aceptada_propia':
           _ref.invalidate(stockRestanteProvider);
           _ref.invalidate(reservasActivasProvider);
           _ref.invalidate(reservasDisponiblesProvider);
-          if (empresaId != null) {
-            _ref.invalidate(reservasEmpresaProvider(empresaId));
-          }
+          _invalidarEmpresa(empresaId); // ✅ usa helper con fallback
           break;
 
         case 'reserva_liberada':
           _ref.invalidate(stockRestanteProvider);
           _ref.invalidate(reservasActivasProvider);
           _ref.invalidate(reservasDisponiblesProvider);
-          if (empresaId != null) {
-            _ref.invalidate(reservasEmpresaProvider(empresaId));
-          }
+          _invalidarEmpresa(empresaId); // ✅
           break;
 
         case 'reserva_entregada':
+          // Este evento es el más crítico para EntregarReservaScreen:
+          // la reserva debe desaparecer de la lista en tiempo real.
           _ref.invalidate(stockRestanteProvider);
           _ref.invalidate(reservasActivasProvider);
-          if (empresaId != null) {
-            _ref.invalidate(reservasEmpresaProvider(empresaId));
-          }
+          _invalidarEmpresa(empresaId); // ✅ si empresa_id es null, invalida toda la family
           break;
 
         case 'nueva_reserva':
           _ref.invalidate(reservasDisponiblesProvider);
-          if (empresaId != null) {
-            _ref.invalidate(reservasEmpresaProvider(empresaId));
-          }
+          _invalidarEmpresa(empresaId); // ✅
           break;
 
         case 'reserva_cancelada':
           _ref.invalidate(stockRestanteProvider);
           _ref.invalidate(reservasActivasProvider);
           _ref.invalidate(reservasDisponiblesProvider);
-          if (empresaId != null) {
-            _ref.invalidate(reservasEmpresaProvider(empresaId));
-          }
+          _invalidarEmpresa(empresaId); // ✅
           break;
       }
     });

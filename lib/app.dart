@@ -36,6 +36,7 @@ class EmpanaTrackApp extends ConsumerWidget {
     ApiClient.inicializar();
 
     final router = GoRouter(
+      debugLogDiagnostics: true,
       initialLocation: '/login',
 
       // Redirección global: si ya hay sesión, ir al dashboard

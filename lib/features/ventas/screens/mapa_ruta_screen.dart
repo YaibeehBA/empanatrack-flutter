@@ -10,6 +10,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../../../core/constants/colores.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../core/services/websocket_service.dart';
 
 import '../../../core/services/ubicacion_service.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -145,6 +146,7 @@ class _MapaRutaScreenState extends ConsumerState<MapaRutaScreen> {
 
   final _mapCtrl = MapController();
   StreamSubscription<Position>? _gpsSub;
+  StreamSubscription<Map<String, dynamic>>? _wsReservasSub;
 
   // ── Distancia al punto de inicio ──────────────────────────────────────────
   double? get _distanciaAlInicio {
@@ -159,15 +161,52 @@ class _MapaRutaScreenState extends ConsumerState<MapaRutaScreen> {
 
   // ── Ciclo de vida ─────────────────────────────────────────────────────────
   @override
-  void initState() {
-    super.initState();
-    // Activar el notifier WS del mapa (escucha reservas en tiempo real)
-    ref.read(ped.reservasMapaProvider);
-    _inicializar();
-  }
+void initState() {
+  super.initState();
+  // Activa el notifier WS del mapa (escucha reservas en tiempo real)
+  ref.read(ped.reservasMapaProvider);
+  _inicializar();
+  _escucharWsReservas(); // ✅ FIX: suscripción directa para forzar rebuild
+}
+ 
+// 4. Agregar este método en _MapaRutaScreenState:
+void _escucharWsReservas() {
+  _wsReservasSub?.cancel();
+  _wsReservasSub = WebSocketService().mensajes.listen((msg) {
+    final tipo = msg['tipo'] as String?;
+ 
+    // Estos eventos cambian la cantidad de reservas visibles en el mapa
+    if (tipo == 'reserva_aceptada_propia' ||
+        tipo == 'reserva_entregada'        ||
+        tipo == 'reserva_liberada'         ||
+        tipo == 'reserva_cancelada'        ||
+        tipo == 'nueva_reserva') {
+ 
+      if (!mounted) return;
+ 
+      final empresaId = msg['empresa_id'] as String?;
+ 
+      // Invalidar el provider específico para que el Consumer
+      // del EmpresaPanel recargue el count desde el backend
+      if (empresaId != null) {
+        ref.invalidate(ped.reservasEmpresaProvider(empresaId));
+      } else {
+        ref.invalidate(ped.reservasEmpresaProvider);
+      }
+ 
+      // ✅ CLAVE: setState fuerza la reconstrucción del árbol completo,
+      // incluyendo el Consumer del EmpresaPanel aunque no esté visible.
+      // Sin esto, Riverpod invalida el provider pero nadie lo observa
+      // y el widget nunca se reconstruye.
+      setState(() {});
+    }
+  });
+}
+ 
 
-  @override
+@override
   void dispose() {
+    _wsReservasSub?.cancel(); // ✅ cancelar suscripción WS
     _gpsSub?.cancel();
     UbicacionRutaVendedorService().detener();
     _mapCtrl.dispose();
@@ -634,25 +673,35 @@ class _MapaRutaScreenState extends ConsumerState<MapaRutaScreen> {
   }
 
   // ── Abrir pantalla de reservas de la empresa ──────────────────────────────
-  Future<void> _abrirReservas(
-    EmpresaRuta empresa,
-    List<ped.PedidoVendedor> reservas,
-  ) async {
-    final actualizo = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => EntregarReservaScreen(
-          empresa:  empresa,
-          reservas: reservas,
-        ),
+ Future<void> _abrirReservas(
+  EmpresaRuta empresa,
+  List<ped.PedidoVendedor> reservas,
+) async {
+  final actualizo = await Navigator.push<bool>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => EntregarReservaScreen(
+        empresa:  empresa,
+        reservas: reservas,
+      ),
+    ),
+  );
+ 
+  if (actualizo == true && mounted) {
+    ref.invalidate(stockRestanteProvider);
+    ref.invalidate(ped.reservasEmpresaProvider(empresa.id));
+    ref.invalidate(ped.reservasActivasProvider); // ✅ faltaba
+    setState(() {}); // ✅ forzar rebuild del badge
+ 
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content:         Text('✅ Reserva entregada correctamente'),
+        backgroundColor: AppColores.success,
+        duration:        Duration(seconds: 2),
       ),
     );
-    if (actualizo == true && mounted) {
-      ref.invalidate(stockRestanteProvider);
-      ref.invalidate(ped.reservasEmpresaProvider(empresa.id));
-    }
   }
-
+}
   // ══════════════════════════════════════════════════════════════════════════
   //  BUILD
   // ══════════════════════════════════════════════════════════════════════════

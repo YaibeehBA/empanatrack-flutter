@@ -193,8 +193,7 @@ class _EntregarReservaScreenState
       }
     } catch (_) {}
 
-    // ✅ PUNTO 2: NuevaVentaScreen hace context.pop(true) al registrar.
-    // Capturamos ese true para saber si hubo venta exitosa.
+    // Navegar a NuevaVentaScreen
     final exito = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -209,28 +208,15 @@ class _EntregarReservaScreenState
     if (exito == true && mounted) {
       _huboCambios = true;
 
-      // ✅ PUNTO 3: invalidar reservasActivasProvider para que la
-      // pantalla de Pedidos quite inmediatamente la reserva entregada
+      // Invalidar providers para refrescar datos
       ref.invalidate(reservasActivasProvider);
       ref.invalidate(reservasEmpresaProvider(widget.empresa.id));
       ref.invalidate(stockRestanteProvider);
 
-      // Mostrar snack brevemente y luego volver al mapa automáticamente
+      // ✅ Pop inmediato - sin delay
+      // El SnackBar de éxito se debe mostrar en el MapaRutaScreen
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content:         Text('✅ Reserva entregada correctamente'),
-            backgroundColor: AppColores.success,
-            duration:        Duration(seconds: 1),
-          ),
-        );
-      }
-
-      // ✅ PUNTO 2: volver automáticamente al mapa tras la venta
-      // Usamos un pequeño delay para que el snack sea visible
-      await Future.delayed(const Duration(milliseconds: 800));
-      if (mounted) {
-        Navigator.pop(context, true); // true → mapa invalida providers
+        Navigator.pop(context, true);
       }
     }
   }

@@ -16,7 +16,6 @@ import '../providers/ventas_provider.dart';
 // ══════════════════════════════════════════════════════════
 
 class NuevaVentaScreen extends ConsumerStatefulWidget {
-  // ── Parámetros opcionales para pre-llenar desde reserva ──
   final String?       reservaId;
   final ClienteModel? clienteInicial;
   final List<({String productoId, String nombre,
@@ -41,27 +40,37 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
   final _notasCtrl         = TextEditingController();
   final _buscarClienteCtrl = TextEditingController();
 
-  // ── Helpers ──────────────────────────────────────────────
+  // ✅ FIX CLAVE: el estado inicial se calcula UNA SOLA VEZ en initState
+  // y se guarda aquí. De esta forma nuevaVentaInicialProvider recibe
+  // siempre la MISMA instancia de NuevaVentaState como clave del family,
+  // evitando que cada rebuild cree una instancia nueva y rompa el ref.listen.
+  late final NuevaVentaState? _estadoInicialFijo;
+
   bool get _esDesdeReserva => widget.reservaId != null;
 
-  NuevaVentaState _estadoInicial() {
-    if (!_esDesdeReserva) return const NuevaVentaState();
+  @override
+  void initState() {
+    super.initState();
+    // Calcular estado inicial una sola vez
+    if (_esDesdeReserva) {
+      final carrito = widget.productosIniciales.map((p) {
+        final producto = ProductoModel(
+          id:     p.productoId,
+          nombre: p.nombre,
+          precio: p.precio,
+        );
+        return ItemCarrito(producto: producto, cantidad: p.cantidad);
+      }).toList();
 
-    final carrito = widget.productosIniciales.map((p) {
-      final producto = ProductoModel(
-        id:         p.productoId,
-        nombre:     p.nombre,
-        precio:     p.precio,
+      _estadoInicialFijo = NuevaVentaState(
+        tipo:         'contado',
+        clienteSelec: widget.clienteInicial,
+        carrito:      carrito,
+        reservaId:    widget.reservaId,
       );
-      return ItemCarrito(producto: producto, cantidad: p.cantidad);
-    }).toList();
-
-    return NuevaVentaState(
-      tipo:         'contado',
-      clienteSelec: widget.clienteInicial,
-      carrito:      carrito,
-      reservaId:    widget.reservaId,
-    );
+    } else {
+      _estadoInicialFijo = null;
+    }
   }
 
   @override
@@ -77,8 +86,11 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ FIX: usa _estadoInicialFijo (calculado en initState, estable)
+    // en lugar de _estadoInicial() (llamado en cada build → clave nueva
+    // en cada rebuild → instancia distinta del family → listener roto)
     final provider = _esDesdeReserva
-        ? nuevaVentaInicialProvider(_estadoInicial())
+        ? nuevaVentaInicialProvider(_estadoInicialFijo!)
         : nuevaVentaProvider;
 
     final state          = ref.watch(provider);
@@ -111,12 +123,16 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
           const SnackBar(
             content:         Text('✅ Venta registrada correctamente'),
             backgroundColor: AppColores.success,
+            duration:        Duration(milliseconds: 600),
           ),
         );
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (context.mounted) context.pop(true); // ← devuelve true
-        });
+
+        // ✅ FIX: Navigator.of imperativo, sin delay, sin go_router.
+        // Funciona correctamente tanto si la pantalla fue empujada con
+        // Navigator.push (desde reserva) como con context.push (go_router).
+        if (context.mounted) Navigator.of(context).pop(true);
       }
+
       if (next.error != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -258,7 +274,7 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
 }
 
 // ══════════════════════════════════════════════════════════
-//  WIDGETS INTERNOS  (sin cambios)
+//  WIDGETS INTERNOS
 // ══════════════════════════════════════════════════════════
 
 class _SeccionTitulo extends StatelessWidget {
