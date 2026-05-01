@@ -6,12 +6,12 @@ import '../models/ruta_activa_models.dart';
 import '../providers/pedidos_vendedor_provider.dart';
 import '../../clientes/providers/clientes_provider.dart';
 import '../../../shared/models/cliente_model.dart';
-import '../providers/ruta_activa_provider.dart' hide reservasEmpresaProvider;
+import '../providers/ruta_activa_provider.dart';
 import 'nueva_venta_screen.dart';
 
 class EntregarReservaScreen extends ConsumerStatefulWidget {
-  final EmpresaRuta            empresa;
-  final List<PedidoVendedor>   reservas;
+  final EmpresaRuta          empresa;
+  final List<PedidoVendedor> reservas;
 
   const EntregarReservaScreen({
     super.key,
@@ -31,9 +31,8 @@ class _EntregarReservaScreenState
 
   @override
   Widget build(BuildContext context) {
-    // Usar el provider de pedidos_vendedor_provider
-    final reservasAsync = ref.watch(
-        reservasEmpresaProvider(widget.empresa.id));
+    final reservasAsync =
+        ref.watch(reservasEmpresaProvider(widget.empresa.id));
 
     return PopScope(
       canPop: true,
@@ -64,59 +63,74 @@ class _EntregarReservaScreenState
         body: reservasAsync.when(
           loading: () =>
               const Center(child: CircularProgressIndicator()),
-          error: (e, st) => Center(child: TextButton(
-            onPressed: () => ref.invalidate(
-                reservasEmpresaProvider(widget.empresa.id)),
-            child: const Text('Reintentar'),
-          )),
+          error: (e, st) => Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('⚠️', style: TextStyle(fontSize: 40)),
+                const SizedBox(height: 12),
+                Text(
+                  parsearErrorDio(e),
+                  textAlign: TextAlign.center,
+                  style:
+                      const TextStyle(color: AppColores.textSecond),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => ref.invalidate(
+                      reservasEmpresaProvider(widget.empresa.id)),
+                  child: const Text('Reintentar'),
+                ),
+              ],
+            ),
+          ),
           data: (reservas) {
             if (reservas.isEmpty) {
-              return Center(child: Padding(
-                padding: const EdgeInsets.all(40),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('📋',
-                        style: TextStyle(fontSize: 52)),
-                    const SizedBox(height: 16),
-                    const Text('Sin reservas pendientes',
-                        style: TextStyle(
-                            fontSize:   18,
-                            fontWeight: FontWeight.bold,
-                            color:      AppColores.textPrimary)),
-                    const SizedBox(height: 8),
-                    Text(
-                      'No hay reservas activas para\n'
-                      '${widget.empresa.nombre}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          color: AppColores.textSecond),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: () =>
-                          Navigator.pop(context, _huboCambios),
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColores.primary,
-                          foregroundColor: Colors.white),
-                      child: const Text('Volver al mapa'),
-                    ),
-                  ],
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(40),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text('📋',
+                          style: TextStyle(fontSize: 52)),
+                      const SizedBox(height: 16),
+                      const Text('Sin reservas pendientes',
+                          style: TextStyle(
+                              fontSize:   18,
+                              fontWeight: FontWeight.bold,
+                              color:      AppColores.textPrimary)),
+                      const SizedBox(height: 8),
+                      Text(
+                        'No hay reservas activas para\n'
+                        '${widget.empresa.nombre}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            color: AppColores.textSecond),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton(
+                        onPressed: () =>
+                            Navigator.pop(context, _huboCambios),
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColores.primary,
+                            foregroundColor: Colors.white),
+                        child: const Text('Volver al mapa'),
+                      ),
+                    ],
+                  ),
                 ),
-              ));
+              );
             }
 
             return ListView(
               padding: const EdgeInsets.all(16),
               children: [
-
-                // Banner info empresa
                 _BannerEmpresa(empresa: widget.empresa),
                 const SizedBox(height: 16),
 
-                // Contador
                 Row(children: [
-                  const Text('RESERVAS PENDIENTES',
+                  const Text('RESERVAS PARA ENTREGAR',
                       style: TextStyle(
                           fontSize:      10,
                           fontWeight:    FontWeight.bold,
@@ -127,7 +141,8 @@ class _EntregarReservaScreenState
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 3),
                     decoration: BoxDecoration(
-                      color:        AppColores.accent.withValues(alpha: 0.1),
+                      color:        AppColores.accent
+                          .withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text('${reservas.length}',
@@ -139,12 +154,11 @@ class _EntregarReservaScreenState
                 ]),
                 const SizedBox(height: 12),
 
-                // Lista de reservas
                 ...reservas.map((reserva) => _TarjetaReserva(
-                  reserva:    reserva,
-                  onEntregar: () => _abrirEntrega(reserva),
-                  onLiberar:  () => _confirmarLiberar(reserva),
-                )),
+                      reserva:    reserva,
+                      onEntregar: () => _abrirEntrega(reserva),
+                      onLiberar:  () => _confirmarLiberar(reserva),
+                    )),
               ],
             );
           },
@@ -153,9 +167,8 @@ class _EntregarReservaScreenState
     );
   }
 
-  // ── Abrir pantalla de venta pre-llenada ───────────────
+  // ── Abrir NuevaVentaScreen pre-llenada y volver al mapa ──
   Future<void> _abrirEntrega(PedidoVendedor reserva) async {
-    // Construir productos desde la reserva
     final productos = reserva.items.map((item) => (
       productoId: item['producto_id'] as String,
       nombre:     item['nombre']      as String,
@@ -163,7 +176,7 @@ class _EntregarReservaScreenState
       cantidad:   item['cantidad']    as int,
     )).toList();
 
-    // Buscar cliente en la lista
+    // Buscar cliente
     ClienteModel? cliente;
     try {
       final clientes = ref.read(clientesProvider).asData?.value;
@@ -171,15 +184,17 @@ class _EntregarReservaScreenState
         cliente = clientes.firstWhere(
           (c) => c.nombre == reserva.clienteNombre,
           orElse: () => ClienteModel(
-            id:     reserva.id,
-            nombre: reserva.clienteNombre,
-            cedula: '',
+            id:          reserva.id,
+            nombre:      reserva.clienteNombre,
+            cedula:      '',
             saldoActual: 0.0,
           ),
         );
       }
     } catch (_) {}
 
+    // ✅ PUNTO 2: NuevaVentaScreen hace context.pop(true) al registrar.
+    // Capturamos ese true para saber si hubo venta exitosa.
     final exito = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -193,19 +208,34 @@ class _EntregarReservaScreenState
 
     if (exito == true && mounted) {
       _huboCambios = true;
+
+      // ✅ PUNTO 3: invalidar reservasActivasProvider para que la
+      // pantalla de Pedidos quite inmediatamente la reserva entregada
+      ref.invalidate(reservasActivasProvider);
       ref.invalidate(reservasEmpresaProvider(widget.empresa.id));
       ref.invalidate(stockRestanteProvider);
-      ref.invalidate(reservaActivaProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content:         Text('✅ Reserva entregada correctamente'),
-          backgroundColor: AppColores.success,
-        ),
-      );
+
+      // Mostrar snack brevemente y luego volver al mapa automáticamente
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:         Text('✅ Reserva entregada correctamente'),
+            backgroundColor: AppColores.success,
+            duration:        Duration(seconds: 1),
+          ),
+        );
+      }
+
+      // ✅ PUNTO 2: volver automáticamente al mapa tras la venta
+      // Usamos un pequeño delay para que el snack sea visible
+      await Future.delayed(const Duration(milliseconds: 800));
+      if (mounted) {
+        Navigator.pop(context, true); // true → mapa invalida providers
+      }
     }
   }
 
-  // ── Confirmar liberar ─────────────────────────────────
+  // ── Confirmar liberar stock ───────────────────────────
   Future<void> _confirmarLiberar(PedidoVendedor reserva) async {
     final confirma = await showDialog<bool>(
       context: context,
@@ -213,8 +243,7 @@ class _EntregarReservaScreenState
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16)),
         title: const Row(children: [
-          Icon(Icons.lock_open_rounded,
-              color: AppColores.warning),
+          Icon(Icons.lock_open_rounded, color: AppColores.warning),
           SizedBox(width: 8),
           Text('Liberar reserva'),
         ]),
@@ -233,18 +262,20 @@ class _EntregarReservaScreenState
                 color:        AppColores.warning.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                    color: AppColores.warning.withValues(alpha: 0.3)),
+                    color:
+                        AppColores.warning.withValues(alpha: 0.3)),
               ),
               child: Row(children: [
                 const Icon(Icons.inventory_2_outlined,
                     color: AppColores.warning, size: 16),
                 const SizedBox(width: 8),
-                Expanded(child: Text(
-                  'Se liberarán ${reserva.items.fold<int>(0, (s, i) => s + (i['cantidad'] as int))} unidades.',
-                  style: const TextStyle(
-                      fontSize: 12,
-                      color:    AppColores.warning),
-                )),
+                Expanded(
+                  child: Text(
+                    'Se liberarán ${reserva.items.fold<int>(0, (s, i) => s + (i['cantidad'] as int))} unidades.',
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColores.warning),
+                  ),
+                ),
               ]),
             ),
           ],
@@ -252,7 +283,7 @@ class _EntregarReservaScreenState
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
+            child:     const Text('Cancelar'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -273,9 +304,12 @@ class _EntregarReservaScreenState
       await ApiClient.post(
           '/pedidos/${reserva.id}/liberar-reserva');
       _huboCambios = true;
+
+      // Invalidar todo lo necesario
       ref.invalidate(reservasEmpresaProvider(widget.empresa.id));
+      ref.invalidate(reservasActivasProvider);
       ref.invalidate(stockRestanteProvider);
-      ref.invalidate(reservaActivaProvider);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -287,13 +321,11 @@ class _EntregarReservaScreenState
       }
     } catch (e) {
       if (mounted) {
-        final msg = RegExp(r'"detail":"([^"]+)"')
-            .firstMatch(e.toString())?.group(1)
-            ?? 'Error al liberar la reserva';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content:         Text(msg),
-              backgroundColor: AppColores.danger),
+            content:         Text(parsearErrorDio(e)),
+            backgroundColor: AppColores.danger,
+          ),
         );
       }
     }
@@ -309,47 +341,49 @@ class _BannerEmpresa extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color:        AppColores.primary.withValues(alpha: 0.06),
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(
-          color: AppColores.primary.withValues(alpha: 0.15)),
-    ),
-    child: Row(children: [
-      Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color:        AppColores.primary.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(10),
+          color:        AppColores.primary.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+              color: AppColores.primary.withValues(alpha: 0.15)),
         ),
-        child: const Icon(Icons.store_rounded,
-            color: AppColores.primary, size: 22),
-      ),
-      const SizedBox(width: 12),
-      Expanded(child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(empresa.nombre,
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize:   15,
-                  color:      AppColores.textPrimary)),
-          if (empresa.direccion != null)
-            Text(empresa.direccion!,
-                style: const TextStyle(
-                    fontSize: 12,
-                    color:    AppColores.textSecond),
-                maxLines:  1,
-                overflow:  TextOverflow.ellipsis),
-        ],
-      )),
-    ]),
-  );
+        child: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color:        AppColores.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.store_rounded,
+                color: AppColores.primary, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(empresa.nombre,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize:   15,
+                        color:      AppColores.textPrimary)),
+                if (empresa.direccion != null)
+                  Text(empresa.direccion!,
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color:    AppColores.textSecond),
+                      maxLines:  1,
+                      overflow:  TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+        ]),
+      );
 }
 
 // ══════════════════════════════════════════════════════════
-//  TARJETA RESERVA — con botones claros
+//  TARJETA RESERVA
 // ══════════════════════════════════════════════════════════
 class _TarjetaReserva extends StatelessWidget {
   final PedidoVendedor reserva;
@@ -364,223 +398,207 @@ class _TarjetaReserva extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    margin:  const EdgeInsets.only(bottom: 14),
-    decoration: BoxDecoration(
-      color:        Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border(
-          left: BorderSide(color: AppColores.accent, width: 4)),
-      boxShadow: [BoxShadow(
-          color:      Colors.black.withValues(alpha: 0.05),
-          blurRadius: 8,
-          offset:     const Offset(0, 2))],
-    ),
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        margin: const EdgeInsets.only(bottom: 14),
+        decoration: BoxDecoration(
+          color:        Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border(
+              left: BorderSide(color: AppColores.accent, width: 4)),
+          boxShadow: [
+            BoxShadow(
+                color:      Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset:     const Offset(0, 2))
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
 
-          // Cliente + total
-          Row(children: [
-            CircleAvatar(
-              radius:          22,
-              backgroundColor: AppColores.accent.withValues(alpha: 0.12),
-              child: Text(
-                reserva.clienteNombre.isNotEmpty
-                    ? reserva.clienteNombre[0].toUpperCase()
-                    : '?',
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize:   18,
-                    color:      AppColores.accent),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(reserva.clienteNombre,
+              // Cliente + total
+              Row(children: [
+                CircleAvatar(
+                  radius:          22,
+                  backgroundColor:
+                      AppColores.accent.withValues(alpha: 0.12),
+                  child: Text(
+                    reserva.clienteNombre.isNotEmpty
+                        ? reserva.clienteNombre[0].toUpperCase()
+                        : '?',
                     style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize:   15,
-                        color:      AppColores.textPrimary)),
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      color:        AppColores.accent.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      reserva.estado == 'aceptado'
-                          ? 'ACEPTADA' : 'PENDIENTE',
-                      style: const TextStyle(
-                          fontSize:   9,
-                          fontWeight: FontWeight.bold,
-                          color:      AppColores.accent),
-                    ),
+                        fontSize:   18,
+                        color:      AppColores.accent),
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    reserva.tipoPago == 'contraentrega'
-                        ? '💵 Contado' : '🏦 Transferencia',
-                    style: const TextStyle(
-                        fontSize: 11,
-                        color:    AppColores.textSecond),
-                  ),
-                ]),
-              ],
-            )),
-            Text('\$${reserva.total.toStringAsFixed(2)}',
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize:   18,
-                    color:      AppColores.primary)),
-          ]),
-
-          const SizedBox(height: 12),
-          const Divider(height: 1, color: Color(0xFFF0F0F0)),
-          const SizedBox(height: 10),
-
-          // Productos
-          const Text('PRODUCTOS',
-              style: TextStyle(
-                  fontSize:      9,
-                  fontWeight:    FontWeight.bold,
-                  color:         AppColores.textSecond,
-                  letterSpacing: 0.8)),
-          const SizedBox(height: 6),
-          ...reserva.items.map((item) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 3),
-            child: Row(children: [
-              Container(
-                width: 28, height: 28,
-                decoration: BoxDecoration(
-                  color:        AppColores.accent.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(6),
                 ),
-                child: Center(child: Text(
-                  '${item['cantidad']}',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize:   12,
-                      color:      AppColores.accent),
-                )),
-              ),
-              const SizedBox(width: 10),
-              Expanded(child: Text(
-                item['nombre'] as String,
-                style: const TextStyle(
-                    fontSize: 13,
-                    color:    AppColores.textPrimary),
-              )),
-              Text(
-                '\$${(item['subtotal'] as num).toStringAsFixed(2)}',
-                style: const TextStyle(
-                    fontSize:   13,
-                    fontWeight: FontWeight.w600,
-                    color:      AppColores.textPrimary),
-              ),
-            ]),
-          )),
-
-          if (reserva.notas != null) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                  color:        Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(8)),
-              child: Row(children: [
-                const Icon(Icons.notes,
-                    size: 13, color: AppColores.textSecond),
-                const SizedBox(width: 6),
-                Expanded(child: Text(reserva.notas!,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(reserva.clienteNombre,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize:   15,
+                              color:      AppColores.textPrimary)),
+                      Row(children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color:        AppColores.accent
+                                .withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text('ACEPTADA',
+                              style: TextStyle(
+                                  fontSize:   9,
+                                  fontWeight: FontWeight.bold,
+                                  color:      AppColores.accent)),
+                        ),
+                        const SizedBox(width: 6),
+                        // Las reservas siempre son contado
+                        const Text('💵 Contado',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color:    AppColores.textSecond)),
+                      ]),
+                    ],
+                  ),
+                ),
+                Text('\$${reserva.total.toStringAsFixed(2)}',
                     style: const TextStyle(
-                        fontSize: 11,
-                        color:    AppColores.textSecond))),
+                        fontWeight: FontWeight.bold,
+                        fontSize:   18,
+                        color:      AppColores.primary)),
               ]),
-            ),
-          ],
 
-          const SizedBox(height: 14),
+              const SizedBox(height: 12),
+              const Divider(height: 1, color: Color(0xFFF0F0F0)),
+              const SizedBox(height: 10),
 
-          // Botones acción — claros y grandes
-          Row(children: [
-
-            // Liberar
-            Expanded(child: OutlinedButton.icon(
-              onPressed: onLiberar,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColores.warning,
-                side: BorderSide(
-                    color: AppColores.warning.withValues(alpha: 0.6),
-                    width: 1.5),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              icon: const Icon(Icons.lock_open_rounded, size: 16),
-              label: const Text('Liberar stock',
+              // Productos
+              const Text('PRODUCTOS',
                   style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize:   12)),
-            )),
-            const SizedBox(width: 10),
+                      fontSize:      9,
+                      fontWeight:    FontWeight.bold,
+                      color:         AppColores.textSecond,
+                      letterSpacing: 0.8)),
+              const SizedBox(height: 6),
 
-            // Entregar → venta
-            Expanded(child: ElevatedButton.icon(
-              onPressed: reserva.estado == 'aceptado'
-                  ? onEntregar : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColores.success,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
-                disabledBackgroundColor:
-                    Colors.grey.shade200,
-              ),
-              icon: const Icon(
-                  Icons.shopping_cart_checkout_rounded,
-                  size: 16),
-              label: const Text('Hacer venta',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize:   12)),
-            )),
-          ]),
+              ...reserva.items.map((item) => Padding(
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 3),
+                    child: Row(children: [
+                      Container(
+                        width:  28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color:        AppColores.accent
+                              .withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Center(
+                          child: Text('${item['cantidad']}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize:   12,
+                                  color:      AppColores.accent)),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(item['nombre'] as String,
+                            style: const TextStyle(
+                                fontSize: 13,
+                                color:    AppColores.textPrimary)),
+                      ),
+                      Text(
+                        '\$${(item['subtotal'] as num).toStringAsFixed(2)}',
+                        style: const TextStyle(
+                            fontSize:   13,
+                            fontWeight: FontWeight.w600,
+                            color:      AppColores.textPrimary),
+                      ),
+                    ]),
+                  )),
 
-          // Aviso si está pendiente (no aceptada)
-          if (reserva.estado == 'pendiente') ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color:        AppColores.warning.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: AppColores.warning.withValues(alpha: 0.2)),
-              ),
-              child: const Row(children: [
-                Icon(Icons.info_outline_rounded,
-                    size: 13, color: AppColores.warning),
-                SizedBox(width: 6),
-                Expanded(child: Text(
-                  'Esta reserva está pendiente — '
-                  'acepta primero desde la pantalla de Reservas.',
-                  style: TextStyle(
-                      fontSize: 10,
-                      color:    AppColores.warning),
-                )),
+              if (reserva.notas != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding:     const EdgeInsets.all(8),
+                  decoration:  BoxDecoration(
+                      color:        Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(8)),
+                  child: Row(children: [
+                    const Icon(Icons.notes,
+                        size: 13, color: AppColores.textSecond),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(reserva.notas!,
+                          style: const TextStyle(
+                              fontSize: 11,
+                              color:    AppColores.textSecond)),
+                    ),
+                  ]),
+                ),
+              ],
+
+              const SizedBox(height: 14),
+
+              // Botones
+              Row(children: [
+                // Liberar stock
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onLiberar,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColores.warning,
+                      side: BorderSide(
+                          color: AppColores.warning
+                              .withValues(alpha: 0.6),
+                          width: 1.5),
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon:  const Icon(Icons.lock_open_rounded, size: 16),
+                    label: const Text('Liberar stock',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize:   12)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+
+                // Hacer venta (siempre contado)
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: onEntregar,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColores.success,
+                      foregroundColor: Colors.white,
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    icon: const Icon(
+                        Icons.shopping_cart_checkout_rounded,
+                        size: 16),
+                    label: const Text('Entregar (contado)',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize:   12)),
+                  ),
+                ),
               ]),
-            ),
-          ],
-        ],
-      ),
-    ),
-  );
+            ],
+          ),
+        ),
+      );
 }

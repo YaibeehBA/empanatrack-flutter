@@ -11,7 +11,6 @@ class PedidosVendedorScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final disponiblesAsync = ref.watch(reservasDisponiblesProvider);
-    // CORREGIDO: ahora es lista de activas
     final activasAsync     = ref.watch(reservasActivasProvider);
     final wsService        = WebSocketService();
 
@@ -44,7 +43,7 @@ class PedidosVendedorScreen extends ConsumerWidget {
             ),
           ),
           IconButton(
-            icon:     const Icon(Icons.refresh),
+            icon:      const Icon(Icons.refresh),
             onPressed: () {
               ref.read(reservasDisponiblesProvider.notifier).recargar();
               ref.read(reservasActivasProvider.notifier).recargar();
@@ -61,16 +60,16 @@ class PedidosVendedorScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           children: [
 
-            // ── Reservas activas (aceptadas por este vendedor) ──
+            // ── Reservas activas (aceptadas) ────────────────────
             activasAsync.when(
               loading: () => const Center(
                 child: Padding(
                   padding: EdgeInsets.all(32),
-                  child: CircularProgressIndicator(),
+                  child:   CircularProgressIndicator(),
                 ),
               ),
-              error: (error, _) => _ErrorVista(
-                mensaje:      error.toString(),
+              error: (e, _) => _ErrorVista(
+                mensaje:      parsearErrorDio(e),
                 onReintentar: () =>
                     ref.read(reservasActivasProvider.notifier).recargar(),
               ),
@@ -79,14 +78,21 @@ class PedidosVendedorScreen extends ConsumerWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _SecLabel('MIS RESERVAS ACEPTADAS (${activas.length})'),
+                    _SecLabel(
+                        'MIS RESERVAS ACEPTADAS (${activas.length})'),
                     const SizedBox(height: 8),
                     ...activas.map(
                       (pedido) => _CardReservaActiva(
-                        pedido: pedido,
+                        pedido:       pedido,
                         onActualizar: () {
-                          ref.read(reservasActivasProvider.notifier).recargar();
-                          ref.read(reservasDisponiblesProvider.notifier).recargar();
+                          ref
+                              .read(reservasActivasProvider.notifier)
+                              .recargar();
+                          ref
+                              .read(reservasDisponiblesProvider.notifier)
+                              .recargar();
+                          // ✅ PUNTO 3: también invalidar stock
+                          ref.invalidate(stockRestanteProvider);
                         },
                       ),
                     ),
@@ -96,7 +102,7 @@ class PedidosVendedorScreen extends ConsumerWidget {
               },
             ),
 
-            // ── Reservas disponibles (pendientes) ──────────────
+            // ── Reservas disponibles (pendientes) ───────────────
             _SecLabel('RESERVAS DISPONIBLES'),
             const SizedBox(height: 8),
 
@@ -104,11 +110,11 @@ class PedidosVendedorScreen extends ConsumerWidget {
               loading: () => const Center(
                 child: Padding(
                   padding: EdgeInsets.all(32),
-                  child: CircularProgressIndicator(),
+                  child:   CircularProgressIndicator(),
                 ),
               ),
-              error: (error, _) => _ErrorVista(
-                mensaje:      error.toString(),
+              error: (e, _) => _ErrorVista(
+                mensaje:      parsearErrorDio(e),
                 onReintentar: () =>
                     ref.read(reservasDisponiblesProvider.notifier).recargar(),
               ),
@@ -116,13 +122,11 @@ class PedidosVendedorScreen extends ConsumerWidget {
                   ? const _SinReservas()
                   : Column(
                       children: reservas
-                          .map(
-                            (p) => _CardReservaDisponible(
-                              pedido:   p,
-                              onAceptar: () =>
-                                  _confirmarAceptar(context, ref, p),
-                            ),
-                          )
+                          .map((p) => _CardReservaDisponible(
+                                pedido:    p,
+                                onAceptar: () =>
+                                    _confirmarAceptar(context, ref, p),
+                              ))
                           .toList(),
                     ),
             ),
@@ -132,6 +136,7 @@ class PedidosVendedorScreen extends ConsumerWidget {
     );
   }
 
+  // ── Diálogo confirmar aceptar ─────────────────────────
   void _confirmarAceptar(
     BuildContext context,
     WidgetRef ref,
@@ -140,11 +145,12 @@ class PedidosVendedorScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16)),
         title: const Text('Aceptar reserva'),
         content: Column(
-          mainAxisSize:        MainAxisSize.min,
-          crossAxisAlignment:  CrossAxisAlignment.start,
+          mainAxisSize:       MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             RichText(
               text: TextSpan(
@@ -157,7 +163,8 @@ class PedidosVendedorScreen extends ConsumerWidget {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   TextSpan(
-                      text: ' por \$${pedido.total.toStringAsFixed(2)}?'),
+                      text:
+                          ' por \$${pedido.total.toStringAsFixed(2)}?'),
                 ],
               ),
             ),
@@ -185,8 +192,9 @@ class PedidosVendedorScreen extends ConsumerWidget {
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Se validará tu stock antes de aceptar. '
-                      'Si no tienes suficiente, se rechazará.',
+                      'Se verificará tu stock antes de aceptar. '
+                      'Si no tienes suficientes productos, '
+                      'se te indicará cuáles faltan.',
                       style: TextStyle(
                           fontSize: 12, color: AppColores.warning),
                     ),
@@ -222,12 +230,8 @@ class PedidosVendedorScreen extends ConsumerWidget {
                 }
                 if (next.error != null) {
                   Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content:         Text(next.error!),
-                      backgroundColor: AppColores.danger,
-                    ),
-                  );
+                  // ✅ PUNTO 1: muestra el mensaje real del backend
+                  _mostrarErrorDetallado(context, next.error!);
                   ref2.read(aceptarReservaProvider.notifier).resetear();
                 }
               });
@@ -248,7 +252,7 @@ class PedidosVendedorScreen extends ConsumerWidget {
                     ? const SizedBox(
                         width:  18,
                         height: 18,
-                        child: CircularProgressIndicator(
+                        child:  CircularProgressIndicator(
                             color: Colors.white, strokeWidth: 2),
                       )
                     : const Text('Aceptar'),
@@ -259,10 +263,102 @@ class PedidosVendedorScreen extends ConsumerWidget {
       ),
     );
   }
+
+  /// Muestra un diálogo con el error detallado del backend
+  /// en lugar de un simple SnackBar, para que el vendedor entienda qué pasó.
+  static void _mostrarErrorDetallado(BuildContext context, String mensaje) {
+    // Detectar tipo de error para mostrar ícono y título apropiados
+    final esStockInsuficiente = mensaje.toLowerCase().contains('stock') ||
+        mensaje.toLowerCase().contains('disponible') ||
+        mensaje.toLowerCase().contains('solicitado');
+    final esEmpresaVisitada =
+        mensaje.toLowerCase().contains('visitaste') ||
+        mensaje.toLowerCase().contains('visitada');
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16)),
+        title: Row(children: [
+          Text(
+            esEmpresaVisitada ? '🏢' : esStockInsuficiente ? '📦' : '⚠️',
+            style: const TextStyle(fontSize: 22),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              esEmpresaVisitada
+                  ? 'Empresa ya visitada'
+                  : esStockInsuficiente
+                      ? 'Stock insuficiente'
+                      : 'No se pudo aceptar',
+              style: const TextStyle(fontSize: 16),
+            ),
+          ),
+        ]),
+        content: Column(
+          mainAxisSize:       MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              esEmpresaVisitada
+                  ? 'Ya marcaste esta empresa como visitada hoy. '
+                    'No puedes aceptar más reservas de ella.'
+                  : esStockInsuficiente
+                      ? 'No tienes suficiente stock para cubrir esta reserva:'
+                      : mensaje,
+              style: const TextStyle(
+                  color: AppColores.textPrimary, fontSize: 14),
+            ),
+            // Si es stock, mostrar los detalles de cada producto
+            if (esStockInsuficiente) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color:        AppColores.danger.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                      color: AppColores.danger.withOpacity(0.2)),
+                ),
+                child: Text(
+                  // El backend devuelve los productos que faltan separados por \n
+                  mensaje.replaceFirst(
+                      RegExp(r'^Stock insuficiente:\n?'), ''),
+                  style: const TextStyle(
+                      fontSize: 12,
+                      color:    AppColores.danger,
+                      height:   1.5),
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Agrega más stock o acepta una reserva más pequeña.',
+                style: TextStyle(
+                    fontSize: 12, color: AppColores.textSecond),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColores.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10))),
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ══════════════════════════════════════════════════════════
-//  CARD — RESERVA DISPONIBLE (sin cambios)
+//  CARD — RESERVA DISPONIBLE
 // ══════════════════════════════════════════════════════════
 class _CardReservaDisponible extends StatelessWidget {
   final PedidoVendedor pedido;
@@ -332,24 +428,27 @@ class _CardReservaDisponible extends StatelessWidget {
           ]),
           const SizedBox(height: 12),
           ...pedido.items.map((item) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Row(children: [
-              const Icon(Icons.circle,
-                  size: 5, color: AppColores.textSecond),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text('${item['cantidad']}x ${item['nombre']}',
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(children: [
+                  const Icon(Icons.circle,
+                      size: 5, color: AppColores.textSecond),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                        '${item['cantidad']}x ${item['nombre']}',
+                        style: const TextStyle(
+                            fontSize: 13,
+                            color:    AppColores.textPrimary)),
+                  ),
+                  Text(
+                    '\$${(item['subtotal'] as num).toStringAsFixed(2)}',
                     style: const TextStyle(
-                        fontSize: 13,
-                        color:    AppColores.textPrimary)),
-              ),
-              Text('\$${(item['subtotal'] as num).toStringAsFixed(2)}',
-                  style: const TextStyle(
-                      fontSize:   13,
-                      fontWeight: FontWeight.w600,
-                      color:      AppColores.textPrimary)),
-            ]),
-          )),
+                        fontSize:   13,
+                        fontWeight: FontWeight.w600,
+                        color:      AppColores.textPrimary),
+                  ),
+                ]),
+              )),
           const SizedBox(height: 10),
           const Row(children: [
             _InfoChip(
@@ -358,8 +457,8 @@ class _CardReservaDisponible extends StatelessWidget {
                 color: AppColores.accent),
             SizedBox(width: 8),
             _InfoChip(
-                icono: Icons.local_shipping_outlined,
-                texto: 'Envío gratis',
+                icono: Icons.payments_outlined,
+                texto: 'Contado',
                 color: AppColores.success),
           ]),
           if (pedido.notas != null) ...[
@@ -424,7 +523,7 @@ class _CardReservaActiva extends ConsumerWidget {
         gradient: LinearGradient(
           colors: [
             AppColores.accent,
-            AppColores.accent.withOpacity(0.75)
+            AppColores.accent.withOpacity(0.75),
           ],
           begin: Alignment.topLeft,
           end:   Alignment.bottomRight,
@@ -447,9 +546,9 @@ class _CardReservaActiva extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Reserva aceptada',
+                  const Text('Reserva aceptada — pendiente de entrega',
                       style: TextStyle(
-                          color: Colors.white70, fontSize: 12)),
+                          color: Colors.white70, fontSize: 11)),
                   Text(pedido.clienteNombre,
                       style: const TextStyle(
                           color:      Colors.white,
@@ -458,8 +557,7 @@ class _CardReservaActiva extends ConsumerWidget {
                   if (pedido.empresaNombre != null)
                     Text(pedido.empresaNombre!,
                         style: const TextStyle(
-                            color:    Colors.white70,
-                            fontSize: 12)),
+                            color: Colors.white70, fontSize: 12)),
                 ],
               ),
             ),
@@ -473,20 +571,23 @@ class _CardReservaActiva extends ConsumerWidget {
 
           // Productos
           ...pedido.items.map((item) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Row(children: [
-              const Icon(Icons.circle,
-                  size: 5, color: Colors.white54),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text('${item['cantidad']}x ${item['nombre']}',
-                    style: const TextStyle(
-                        color: Colors.white70, fontSize: 12)),
-              ),
-            ]),
-          )),
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(children: [
+                  const Icon(Icons.circle,
+                      size: 5, color: Colors.white54),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                        '${item['cantidad']}x ${item['nombre']}',
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 12)),
+                  ),
+                ]),
+              )),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+
+          // Chip de estado
           Container(
             padding: const EdgeInsets.symmetric(
                 horizontal: 10, vertical: 5),
@@ -494,8 +595,8 @@ class _CardReservaActiva extends ConsumerWidget {
               color:        Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Text(pedido.estadoLabel,
-                style: const TextStyle(
+            child: const Text('📦 En curso',
+                style: TextStyle(
                     color:      Colors.white,
                     fontSize:   12,
                     fontWeight: FontWeight.bold)),
@@ -504,8 +605,7 @@ class _CardReservaActiva extends ConsumerWidget {
           if (pedido.notas != null) ...[
             const SizedBox(height: 8),
             Row(children: [
-              const Icon(Icons.notes,
-                  color: Colors.white70, size: 14),
+              const Icon(Icons.notes, color: Colors.white70, size: 14),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(pedido.notas!,
@@ -518,40 +618,74 @@ class _CardReservaActiva extends ConsumerWidget {
 
           Consumer(builder: (ctx, ref2, _) {
             final state = ref2.watch(aceptarReservaProvider);
+
+            // Escuchar resultado
+            ref2.listen<AceptarReservaState>(aceptarReservaProvider,
+                (_, next) {
+              if (next.exitoso) {
+                onActualizar();
+                ref2.read(aceptarReservaProvider.notifier).resetear();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content:         Text('✅ Hecho'),
+                    backgroundColor: AppColores.success,
+                  ),
+                );
+              }
+              if (next.error != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    // ✅ PUNTO 1: muestra error real
+                    content:         Text(next.error!),
+                    backgroundColor: AppColores.danger,
+                  ),
+                );
+                ref2.read(aceptarReservaProvider.notifier).resetear();
+              }
+            });
+
             return Row(children: [
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: state.cargando
                       ? null
-                      : () => _confirmarEstado(
-                          ctx, ref2, 'entregado'),
+                      : () => _confirmarEstado(ctx, ref2, 'entregado'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColores.success,
                     foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 10, horizontal: 8),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
-                  icon:  const Icon(Icons.check_circle, size: 16),
-                  label: const Text('Entregado',
-                      style: TextStyle(fontSize: 13)),
+                  icon:  const Icon(Icons.check_circle, size: 15),
+                  label: const Text(
+                    'Entregado',
+                    style: TextStyle(fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: state.cargando
                       ? null
-                      : () => _confirmarEstado(
-                          ctx, ref2, 'cancelado'),
+                      : () => _confirmarEstado(ctx, ref2, 'cancelado'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 10, horizontal: 8),
                     side: const BorderSide(color: Colors.white54),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
-                  icon:  const Icon(Icons.cancel_outlined, size: 16),
-                  label: const Text('Cancelar',
-                      style: TextStyle(fontSize: 13)),
+                  icon:  const Icon(Icons.lock_open_rounded, size: 15),
+                  label: const Text(
+                    'Liberar',
+                    style: TextStyle(fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ]);
@@ -563,38 +697,47 @@ class _CardReservaActiva extends ConsumerWidget {
 
   void _confirmarEstado(
       BuildContext context, WidgetRef ref, String nuevoEstado) {
-    final label = nuevoEstado == 'entregado' ? 'entregado' : 'cancelado';
-    final color = nuevoEstado == 'entregado'
-        ? AppColores.success
-        : AppColores.danger;
+    final esCancelar = nuevoEstado == 'cancelado';
+    final color      = esCancelar ? AppColores.warning : AppColores.success;
 
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16)),
-        title:   Text('Marcar como $label'),
+        title: Row(children: [
+          Text(esCancelar ? '🔓' : '✅',
+              style: const TextStyle(fontSize: 22)),
+          const SizedBox(width: 8),
+          Text(esCancelar
+              ? 'Cancelar y liberar'
+              : 'Marcar como entregado'),
+        ]),
         content: Text(
-            '¿Confirmas que la reserva de ${pedido.clienteNombre} está $label?'),
+          esCancelar
+              ? 'Se cancelará la reserva de ${pedido.clienteNombre} '
+                'y los productos volverán a tu stock disponible.'
+              : '¿Confirmas que entregaste la reserva de '
+                '${pedido.clienteNombre}?',
+        ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
-              child:     const Text('Cancelar')),
+              child:     const Text('Volver')),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
+              // ✅ actualizarEstado ya redirige cancelado → liberar-reserva
               await ref
                   .read(aceptarReservaProvider.notifier)
                   .actualizarEstado(pedido.id, nuevoEstado);
-              onActualizar();
-              ref.read(aceptarReservaProvider.notifier).resetear();
             },
             style: ElevatedButton.styleFrom(
                 backgroundColor: color,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10))),
-            child: const Text('Confirmar'),
+            child: Text(esCancelar ? 'Sí, liberar' : 'Confirmar'),
           ),
         ],
       ),
@@ -610,13 +753,13 @@ class _SecLabel extends StatelessWidget {
   const _SecLabel(this.texto);
   @override
   Widget build(BuildContext context) => Text(
-    texto,
-    style: const TextStyle(
-        fontSize:      11,
-        fontWeight:    FontWeight.bold,
-        color:         AppColores.textSecond,
-        letterSpacing: 1.0),
-  );
+        texto,
+        style: const TextStyle(
+            fontSize:      11,
+            fontWeight:    FontWeight.bold,
+            color:         AppColores.textSecond,
+            letterSpacing: 1.0),
+      );
 }
 
 class _InfoChip extends StatelessWidget {
@@ -628,48 +771,48 @@ class _InfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    decoration: BoxDecoration(
-      color:        color.withOpacity(0.1),
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icono, size: 12, color: color),
-      const SizedBox(width: 4),
-      Text(texto,
-          style: TextStyle(
-              fontSize:   11,
-              color:      color,
-              fontWeight: FontWeight.w600)),
-    ]),
-  );
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color:        color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icono, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(texto,
+              style: TextStyle(
+                  fontSize:   11,
+                  color:      color,
+                  fontWeight: FontWeight.w600)),
+        ]),
+      );
 }
 
 class _SinReservas extends StatelessWidget {
   const _SinReservas();
   @override
   Widget build(BuildContext context) => const Padding(
-    padding: EdgeInsets.all(32),
-    child: Center(
-      child: Column(
-        children: [
-          Text('📭', style: TextStyle(fontSize: 52)),
-          SizedBox(height: 16),
-          Text('Sin reservas disponibles',
-              style: TextStyle(
-                  fontSize:   16,
-                  fontWeight: FontWeight.bold,
-                  color:      AppColores.textPrimary)),
-          SizedBox(height: 8),
-          Text(
-            'Cuando un cliente haga una reserva\nde tu ruta aparecerá aquí.',
-            textAlign: TextAlign.center,
-            style:     TextStyle(color: AppColores.textSecond),
+        padding: EdgeInsets.all(32),
+        child: Center(
+          child: Column(
+            children: [
+              Text('📭', style: TextStyle(fontSize: 52)),
+              SizedBox(height: 16),
+              Text('Sin reservas disponibles',
+                  style: TextStyle(
+                      fontSize:   16,
+                      fontWeight: FontWeight.bold,
+                      color:      AppColores.textPrimary)),
+              SizedBox(height: 8),
+              Text(
+                'Cuando un cliente haga una reserva\nde tu ruta aparecerá aquí.',
+                textAlign: TextAlign.center,
+                style:     TextStyle(color: AppColores.textSecond),
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 }
 
 class _ErrorVista extends StatelessWidget {
@@ -680,20 +823,21 @@ class _ErrorVista extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Text('⚠️', style: TextStyle(fontSize: 40)),
-        const SizedBox(height: 12),
-        Text('Error: $mensaje',
-            style: const TextStyle(color: AppColores.textSecond)),
-        const SizedBox(height: 12),
-        ElevatedButton(
-            onPressed: onReintentar,
-            child: const Text('Reintentar')),
-      ],
-    ),
-  );
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('⚠️', style: TextStyle(fontSize: 40)),
+            const SizedBox(height: 12),
+            Text(mensaje,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColores.textSecond)),
+            const SizedBox(height: 12),
+            ElevatedButton(
+                onPressed: onReintentar,
+                child:     const Text('Reintentar')),
+          ],
+        ),
+      );
 }
 
 String _formatFecha(DateTime fecha) {
