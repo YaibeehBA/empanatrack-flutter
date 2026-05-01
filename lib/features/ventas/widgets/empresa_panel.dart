@@ -10,6 +10,8 @@ class EmpresaPanel extends StatefulWidget {
   final DateTime?    llegadaEn;
   final bool         cargando;
   final VoidCallback onNuevaVenta;
+  final VoidCallback onVerReservas;
+  final int  cantidadReservas;
   final VoidCallback onRegistrarCobro;
   final VoidCallback onMarcarVisitada;
 
@@ -19,6 +21,8 @@ class EmpresaPanel extends StatefulWidget {
     required this.llegadaEn,
     required this.cargando,
     required this.onNuevaVenta,
+    required this.onVerReservas,
+    required this.cantidadReservas,
     required this.onRegistrarCobro,
     required this.onMarcarVisitada,
   });
@@ -91,6 +95,7 @@ class _EmpresaPanelState extends State<EmpresaPanel>
       _animCtrl.reverse();
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -217,12 +222,11 @@ class _EmpresaPanelState extends State<EmpresaPanel>
                     color:  AppColores.warning,
                     onTap:  widget.onNuevaVenta,
                   )),
-                  const SizedBox(width: 8),
-                  Expanded(child: _AccionCompacta(
-                    icono:  Icons.account_balance_wallet_outlined,
-                    titulo: 'Cobrar fiado',
-                    color:  AppColores.accent,
-                    onTap:  widget.onRegistrarCobro,
+                 const SizedBox(width: 8),
+                  // ── RESERVAS con badge ──────────────────────────
+                  Expanded(child: _AccionReservas(
+                    cantidad: widget.cantidadReservas,
+                    onTap:    widget.onVerReservas,
                   )),
                 ]),
                 const SizedBox(height: 12),
@@ -389,5 +393,57 @@ class _AccionCompacta extends StatelessWidget {
         ],
       ),
     ),
+  );
+}
+class _AccionReservas extends StatelessWidget {
+  final int          cantidad;
+  final VoidCallback onTap;
+  const _AccionReservas({
+      required this.cantidad, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Stack(clipBehavior: Clip.none, children: [
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(
+            vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color:        AppColores.accent.withOpacity(0.07),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: cantidad > 0
+                  ? AppColores.accent.withOpacity(0.4)
+                  : AppColores.accent.withOpacity(0.15)),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.bookmark_rounded,
+              color: AppColores.accent, size: 22),
+          const SizedBox(height: 6),
+          const Text('Reservas',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize:   10,
+                  fontWeight: FontWeight.bold,
+                  color:      AppColores.accent)),
+        ]),
+      ),
+      if (cantidad > 0)
+        Positioned(
+          top: -6, right: -6,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: const BoxDecoration(
+                color: AppColores.danger,
+                shape: BoxShape.circle),
+            child: Text('$cantidad',
+                style: const TextStyle(
+                    color:      Colors.white,
+                    fontSize:   9,
+                    fontWeight: FontWeight.bold)),
+          ),
+        ),
+    ]),
   );
 }

@@ -216,6 +216,7 @@ class ProductoStockRestante {
   final String? imagenUrl;
   final int     cantidadInicial;
   final int     cantidadVendida;
+  final int     cantidadReservada; 
   final int     cantidadRestante;
   final bool    enStockHoy;       // ← NUEVO
 
@@ -226,6 +227,7 @@ class ProductoStockRestante {
     this.imagenUrl,
     required this.cantidadInicial,
     required this.cantidadVendida,
+    this.cantidadReservada = 0,
     required this.cantidadRestante,
     this.enStockHoy = true,       // ← NUEVO
   });
@@ -238,6 +240,7 @@ class ProductoStockRestante {
         imagenUrl:        j['imagen_url'],
         cantidadInicial:  j['cantidad_inicial']  ?? 0,
         cantidadVendida:  j['cantidad_vendida']   ?? 0,
+        cantidadReservada: j['cantidad_reservada'] ?? 0,
         cantidadRestante: j['cantidad_restante']  ?? 0,
         enStockHoy:       j['en_stock_hoy']       ?? true,
       );

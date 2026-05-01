@@ -368,7 +368,7 @@ class _ResumenCompacto extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _Stat('${resumen.pedidosEntregados}',
-                  'Pedidos', AppColores.accent),
+                  'Reservas', AppColores.accent),
               _Div(),
               _Stat('\$${resumen.totalPedidosContado.toStringAsFixed(2)}',
                   'Cobrado', AppColores.success),
@@ -565,21 +565,20 @@ class _PedidoCard extends StatelessWidget {
   final PedidoVendedor pedido;
   const _PedidoCard({required this.pedido});
 
-  Color get _colorEstado {
-    switch (pedido.estado) {
-      case 'entregado': return AppColores.success;
-      case 'en_camino': return AppColores.primary;
-      case 'cancelado': return AppColores.danger;
-      default:          return AppColores.accent;
-    }
-  }
+  // Color get _colorEstado {
+  //   switch (pedido.estado) {
+  //     case 'entregado': return AppColores.success;
+  //     case 'en_camino': return AppColores.primary;
+  //     case 'cancelado': return AppColores.danger;
+  //     default:          return AppColores.accent;
+  //   }
+  // }
 
   String get _iconoEstado {
     switch (pedido.estado) {
       case 'entregado': return '✅';
-      case 'en_camino': return '🚚';
       case 'cancelado': return '❌';
-      default:          return '🛵';
+      default:          return '📋';
     }
   }
 
@@ -640,7 +639,7 @@ class _PedidoCard extends StatelessWidget {
           const Divider(height: 1, color: Color(0xFFF0F0F0)),
           const SizedBox(height: 8),
           Row(children: [
-            _Badge(label: 'PEDIDO', color: AppColores.primary),
+            _Badge(label: 'RESERVA', color: AppColores.accent),
             const SizedBox(width: 6),
             _Badge(
               label: esCobrado ? 'CONTRAENTREGA' : 'TRANSFERENCIA',

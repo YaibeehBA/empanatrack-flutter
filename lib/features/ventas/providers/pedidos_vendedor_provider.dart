@@ -1,13 +1,12 @@
-// lib/features/pedidos/providers/pedidos_vendedor_provider.dart
-
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/services/websocket_service.dart';
+import 'ruta_activa_provider.dart';
 import 'ventas_provider.dart' show RangoFechas;
 
 // ══════════════════════════════════════════════════════════
-//  MODELO — Pedido/Reserva del vendedor
+//  MODELO
 // ══════════════════════════════════════════════════════════
 class PedidoVendedor {
   final String id;
@@ -15,6 +14,7 @@ class PedidoVendedor {
   final String? clienteTelefono;
   final String? vendedorId;
   final String? vendedorNombre;
+  final String? empresaId;
   final String? empresaNombre;
   final String estado;
   final String tipoPago;
@@ -33,6 +33,7 @@ class PedidoVendedor {
     this.clienteTelefono,
     this.vendedorId,
     this.vendedorNombre,
+    this.empresaId,
     this.empresaNombre,
     required this.estado,
     required this.tipoPago,
@@ -47,26 +48,29 @@ class PedidoVendedor {
   });
 
   factory PedidoVendedor.fromJson(Map<String, dynamic> j) => PedidoVendedor(
-    id: j['id'],
-    clienteNombre: j['cliente_nombre'] ?? '',
-    clienteTelefono: j['cliente_telefono'],
-    vendedorId: j['vendedor_id'],
-    vendedorNombre: j['vendedor_nombre'],
-    empresaNombre: j['empresa_nombre'],
-    estado: j['estado'],
-    tipoPago: j['tipo_pago'],
-    total: (j['total'] as num).toDouble(),
+    id:               j['id'],
+    clienteNombre:    j['cliente_nombre'] ?? '',
+    clienteTelefono:  j['cliente_telefono'],
+    vendedorId:       j['vendedor_id'],
+    vendedorNombre:   j['vendedor_nombre'],
+    empresaId:        j['empresa_id'],
+    empresaNombre:    j['empresa_nombre'],
+    estado:           j['estado'],
+    tipoPago:         j['tipo_pago'],
+    total:            (j['total'] as num).toDouble(),
     direccionEntrega: j['direccion_entrega'],
-    latitudEntrega: j['latitud_entrega'] != null
+    latitudEntrega:   j['latitud_entrega'] != null
         ? (j['latitud_entrega'] as num).toDouble()
         : null,
-    longitudEntrega: j['longitud_entrega'] != null
+    longitudEntrega:  j['longitud_entrega'] != null
         ? (j['longitud_entrega'] as num).toDouble()
         : null,
-    notas: j['notas'],
-    aceptadoEn: j['aceptado_en'],
-    creadoEn: j['creado_en'],
-    items: (j['items'] as List).map((i) => i as Map<String, dynamic>).toList(),
+    notas:            j['notas'],
+    aceptadoEn:       j['aceptado_en'],
+    creadoEn:         j['creado_en'],
+    items:            (j['items'] as List)
+        .map((i) => i as Map<String, dynamic>)
+        .toList(),
   );
 
   bool get tieneCoordenadas =>
@@ -77,16 +81,11 @@ class PedidoVendedor {
 
   String get estadoLabel {
     switch (estado) {
-      case 'entregado':
-        return '✅ Entregado';
-      case 'cancelado':
-        return '❌ Cancelado';
-      case 'aceptado':
-        return '📦 En curso';
-      case 'pendiente':
-        return '⏳ Pendiente';
-      default:
-        return estado;
+      case 'entregado': return '✅ Entregado';
+      case 'cancelado': return '❌ Cancelado';
+      case 'aceptado':  return '📦 En curso';
+      case 'pendiente': return '⏳ Pendiente';
+      default:          return estado;
     }
   }
 }
@@ -94,7 +93,8 @@ class PedidoVendedor {
 // ══════════════════════════════════════════════════════════
 //  NOTIFIER — Reservas disponibles (pendientes)
 // ══════════════════════════════════════════════════════════
-class ReservasDisponiblesNotifier extends StateNotifier<AsyncValue<List<PedidoVendedor>>> {
+class ReservasDisponiblesNotifier
+    extends StateNotifier<AsyncValue<List<PedidoVendedor>>> {
   ReservasDisponiblesNotifier() : super(const AsyncValue.loading()) {
     _cargar();
     _escucharWs();
@@ -118,10 +118,13 @@ class ReservasDisponiblesNotifier extends StateNotifier<AsyncValue<List<PedidoVe
   void _escucharWs() {
     _wsSub?.cancel();
     _wsSub = WebSocketService().mensajes.listen((msg) {
-      if (msg['tipo'] == 'nueva_reserva') {
+      final tipo = msg['tipo'] as String?;
+      // Nueva reserva llegó → recargar lista completa
+      if (tipo == 'nueva_reserva') {
         _cargar();
       }
-      if (msg['tipo'] == 'reserva_aceptada_otro') {
+      // Otra reserva fue aceptada → quitarla de la lista local sin recargar
+      if (tipo == 'reserva_aceptada_propia') {
         final id = msg['pedido_id'] as String?;
         if (id != null && mounted) {
           state.whenData((lista) {
@@ -129,7 +132,8 @@ class ReservasDisponiblesNotifier extends StateNotifier<AsyncValue<List<PedidoVe
           });
         }
       }
-      if (msg['tipo'] == 'reserva_cancelada') {
+      // Reserva cancelada → recargar
+      if (tipo == 'reserva_cancelada' || tipo == 'reserva_liberada') {
         _cargar();
       }
     });
@@ -145,10 +149,12 @@ class ReservasDisponiblesNotifier extends StateNotifier<AsyncValue<List<PedidoVe
 }
 
 // ══════════════════════════════════════════════════════════
-//  NOTIFIER — Reserva activa (aceptada por este vendedor)
+//  NOTIFIER — Reservas activas (aceptadas por este vendedor)
+//  El backend ahora devuelve una LISTA (puede tener varias)
 // ══════════════════════════════════════════════════════════
-class ReservaActivaNotifier extends StateNotifier<AsyncValue<PedidoVendedor?>> {
-  ReservaActivaNotifier() : super(const AsyncValue.loading()) {
+class ReservasActivasNotifier
+    extends StateNotifier<AsyncValue<List<PedidoVendedor>>> {
+  ReservasActivasNotifier() : super(const AsyncValue.loading()) {
     _cargar();
     _escucharWs();
   }
@@ -159,11 +165,22 @@ class ReservaActivaNotifier extends StateNotifier<AsyncValue<PedidoVendedor?>> {
     try {
       final r = await ApiClient.get('/pedidos/vendedor/reserva-activa');
       if (mounted) {
-        state = AsyncValue.data(r.data != null ? PedidoVendedor.fromJson(r.data) : null);
+        // El backend devuelve una lista
+        final data = r.data;
+        if (data is List) {
+          state = AsyncValue.data(
+            data.map((p) => PedidoVendedor.fromJson(p)).toList(),
+          );
+        } else if (data != null) {
+          // Compatibilidad: si por alguna razón devuelve un objeto solo
+          state = AsyncValue.data([PedidoVendedor.fromJson(data)]);
+        } else {
+          state = const AsyncValue.data([]);
+        }
       }
     } catch (e, st) {
       if (e.toString().contains('404')) {
-        if (mounted) state = const AsyncValue.data(null);
+        if (mounted) state = const AsyncValue.data([]);
       } else {
         if (mounted) state = AsyncValue.error(e, st);
       }
@@ -173,13 +190,13 @@ class ReservaActivaNotifier extends StateNotifier<AsyncValue<PedidoVendedor?>> {
   void _escucharWs() {
     _wsSub?.cancel();
     _wsSub = WebSocketService().mensajes.listen((msg) {
-      if (msg['tipo'] == 'reserva_aceptada' && msg['vendedor_id'] != null) {
+      final tipo = msg['tipo'] as String?;
+      // Se aceptó una reserva → recargar para que aparezca en activas
+      if (tipo == 'reserva_aceptada_propia') {
         _cargar();
       }
-      if (msg['tipo'] == 'reserva_entregada' || msg['tipo'] == 'reserva_cancelada_por_vendedor') {
-        if (mounted) state = const AsyncValue.data(null);
-      }
-      if (msg['tipo'] == 'reserva_asignada') {
+      // Se entregó o liberó → recargar
+      if (tipo == 'reserva_entregada' || tipo == 'reserva_liberada') {
         _cargar();
       }
     });
@@ -195,7 +212,7 @@ class ReservaActivaNotifier extends StateNotifier<AsyncValue<PedidoVendedor?>> {
 }
 
 // ══════════════════════════════════════════════════════════
-//  NOTIFIER — Aceptar / Actualizar reserva
+//  NOTIFIER — Aceptar reserva
 // ══════════════════════════════════════════════════════════
 class AceptarReservaState {
   final bool cargando;
@@ -208,12 +225,15 @@ class AceptarReservaState {
     this.exitoso = false,
   });
 
-  AceptarReservaState copyWith({bool? cargando, String? error, bool? exitoso}) =>
-      AceptarReservaState(
-        cargando: cargando ?? this.cargando,
-        error: error,
-        exitoso: exitoso ?? this.exitoso,
-      );
+  AceptarReservaState copyWith({
+    bool? cargando,
+    String? error,
+    bool? exitoso,
+  }) => AceptarReservaState(
+    cargando: cargando ?? this.cargando,
+    error:    error,
+    exitoso:  exitoso ?? this.exitoso,
+  );
 }
 
 class AceptarReservaNotifier extends StateNotifier<AceptarReservaState> {
@@ -251,36 +271,49 @@ class AceptarReservaNotifier extends StateNotifier<AceptarReservaState> {
 }
 
 // ══════════════════════════════════════════════════════════
-//  PROVIDERS — CON NOMBRES ACTUALIZADOS
+//  PROVIDERS PRINCIPALES
 // ══════════════════════════════════════════════════════════
-final reservasDisponiblesProvider = StateNotifierProvider<ReservasDisponiblesNotifier, AsyncValue<List<PedidoVendedor>>>(
+
+final reservasDisponiblesProvider = StateNotifierProvider<
+    ReservasDisponiblesNotifier, AsyncValue<List<PedidoVendedor>>>(
   (ref) => ReservasDisponiblesNotifier(),
 );
 
-final reservaActivaProvider = StateNotifierProvider<ReservaActivaNotifier, AsyncValue<PedidoVendedor?>>(
-  (ref) => ReservaActivaNotifier(),
+// CORREGIDO: ahora es una lista de reservas activas
+final reservasActivasProvider = StateNotifierProvider<
+    ReservasActivasNotifier, AsyncValue<List<PedidoVendedor>>>(
+  (ref) => ReservasActivasNotifier(),
 );
 
-final aceptarReservaProvider = StateNotifierProvider.autoDispose<AceptarReservaNotifier, AceptarReservaState>(
+final aceptarReservaProvider = StateNotifierProvider.autoDispose<
+    AceptarReservaNotifier, AceptarReservaState>(
   (ref) => AceptarReservaNotifier(),
 );
 
 // ══════════════════════════════════════════════════════════
-//  PROVIDERS — CON NOMBRES ANTIGUOS (PARA COMPATIBILIDAD)
-//  ¡NO ROMPER OTRAS PANTALLAS!
+//  ALIASES DE COMPATIBILIDAD
 // ══════════════════════════════════════════════════════════
 
-// Para bottom_nav.dart y otras pantallas que usan pedidosDisponiblesProvider
+// Para bottom_nav.dart y otras pantallas
 final pedidosDisponiblesProvider = reservasDisponiblesProvider;
 
-// Para dashboard_screen, historial_screen, mapa_ruta_screen
+// Para historial
 final pedidosHistorialProvider = reservasHistorialProvider;
 
-// Para compatibilidad con el nombre anterior
+// DEPRECATED: el anterior era Optional<PedidoVendedor?>, ahora es lista.
+// Las pantallas que usaban reservaActivaProvider deben migrar a reservasActivasProvider.
+// Se mantiene como alias que devuelve el primero de la lista (o null).
+final reservaActivaProvider = Provider<AsyncValue<PedidoVendedor?>>((ref) {
+  final lista = ref.watch(reservasActivasProvider);
+  return lista.whenData((l) => l.isEmpty ? null : l.first);
+});
+
+// Para compatibilidad con mapa_ruta_screen que usa pedidoActivoProvider
 final pedidoActivoProvider = reservaActivaProvider;
 
-// Historial de reservas (necesario para las otras pantallas)
-final reservasHistorialProvider = FutureProvider.family<List<PedidoVendedor>, RangoFechas>(
+// Historial
+final reservasHistorialProvider =
+    FutureProvider.family<List<PedidoVendedor>, RangoFechas>(
   (ref, rango) async {
     final r = await ApiClient.get(
       '/pedidos/historial-vendedor',
@@ -288,4 +321,97 @@ final reservasHistorialProvider = FutureProvider.family<List<PedidoVendedor>, Ra
     );
     return (r.data as List).map((p) => PedidoVendedor.fromJson(p)).toList();
   },
+);
+
+// ══════════════════════════════════════════════════════════
+//  RESERVAS POR EMPRESA (para el panel del mapa)
+//  UNA SOLA DEFINICIÓN — devuelve List<PedidoVendedor>
+// ══════════════════════════════════════════════════════════
+final reservasEmpresaProvider =
+    FutureProvider.autoDispose.family<List<PedidoVendedor>, String>(
+  (ref, empresaId) async {
+    final r = await ApiClient.get('/pedidos/reservas-empresa/$empresaId');
+    return (r.data as List)
+        .map((p) => PedidoVendedor.fromJson(p as Map<String, dynamic>))
+        .toList();
+  },
+);
+
+// ══════════════════════════════════════════════════════════
+//  NOTIFIER WS — invalida stock y reservas en tiempo real
+// ══════════════════════════════════════════════════════════
+class ReservasMapaNotifier extends StateNotifier<void> {
+  final Ref _ref;
+  ReservasMapaNotifier(this._ref) : super(null) {
+    _escucharWs();
+  }
+
+  StreamSubscription? _wsSub;
+
+  void _escucharWs() {
+    _wsSub?.cancel();
+    _wsSub = WebSocketService().mensajes.listen((msg) {
+      final tipo      = msg['tipo']       as String?;
+      final empresaId = msg['empresa_id'] as String?;
+
+      switch (tipo) {
+        // Vendedor aceptó una reserva → stock baja, badge de empresa sube
+        case 'reserva_aceptada_propia':
+          _ref.invalidate(stockRestanteProvider);
+          _ref.invalidate(reservasActivasProvider);
+          _ref.invalidate(reservasDisponiblesProvider);
+          if (empresaId != null) {
+            _ref.invalidate(reservasEmpresaProvider(empresaId));
+          }
+          break;
+
+        // Vendedor liberó una reserva → stock sube, badge de empresa baja
+        case 'reserva_liberada':
+          _ref.invalidate(stockRestanteProvider);
+          _ref.invalidate(reservasActivasProvider);
+          if (empresaId != null) {
+            _ref.invalidate(reservasEmpresaProvider(empresaId));
+          }
+          break;
+
+        // Reserva entregada como venta → stock baja definitivamente
+        case 'reserva_entregada':
+          _ref.invalidate(stockRestanteProvider);
+          _ref.invalidate(reservasActivasProvider);
+          if (empresaId != null) {
+            _ref.invalidate(reservasEmpresaProvider(empresaId));
+          }
+          break;
+
+        // Nueva reserva de cliente → lista de disponibles debe actualizarse
+        case 'nueva_reserva':
+          _ref.invalidate(reservasDisponiblesProvider);
+          if (empresaId != null) {
+            // Si el panel de esa empresa está abierto, refrescar su badge
+            _ref.invalidate(reservasEmpresaProvider(empresaId));
+          }
+          break;
+
+        case 'reserva_cancelada':
+          _ref.invalidate(stockRestanteProvider);
+          _ref.invalidate(reservasActivasProvider);
+          _ref.invalidate(reservasDisponiblesProvider);
+          if (empresaId != null) {
+            _ref.invalidate(reservasEmpresaProvider(empresaId));
+          }
+          break;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _wsSub?.cancel();
+    super.dispose();
+  }
+}
+
+final reservasMapaProvider =
+    StateNotifierProvider<ReservasMapaNotifier, void>(
+  (ref) => ReservasMapaNotifier(ref),
 );

@@ -4,6 +4,7 @@
 class PedidoBase {
   final String  id;
   final String  tipo;          // normal | reserva
+  final String  clienteId;      // ← NUEVO: solo esto
   final String  clienteNombre;
   final String? clienteTelefono;
   final String? vendedorId;
@@ -27,6 +28,7 @@ class PedidoBase {
   const PedidoBase({
     required this.id,
     required this.tipo,
+    required this.clienteId,        // ← NUEVO
     required this.clienteNombre,
     this.clienteTelefono,
     this.vendedorId,
@@ -67,6 +69,7 @@ class PedidoBase {
   factory PedidoBase.fromJson(Map<String, dynamic> j) => PedidoBase(
     id:               j['id'],
     tipo:             j['tipo']           ?? 'normal',
+    clienteId:        j['cliente_id']     ?? '',  // ← NUEVO
     clienteNombre:    j['cliente_nombre'] ?? '',
     clienteTelefono:  j['cliente_telefono'],
     vendedorId:       j['vendedor_id'],

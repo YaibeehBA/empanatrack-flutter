@@ -21,11 +21,7 @@ class EmpresaMarker extends StatelessWidget {
     return AppColores.danger;
   }
 
-  String get _icono {
-    if (empresa.visitada) return '✓';
-    if (esInicio)         return '▶';  // ← ícono de inicio
-    return '';
-  }
+ 
 
   @override
   Widget build(BuildContext context) => Column(

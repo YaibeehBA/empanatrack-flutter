@@ -30,6 +30,10 @@ final resumenRutaFinalProvider = FutureProvider.autoDispose
       return ResumenRutaFinal.fromJson(r.data);
     });
 
+// NOTA: reservasEmpresaProvider fue eliminado de este archivo.
+// Usar ÚNICAMENTE el de pedidos_vendedor_provider.dart,
+// que devuelve List<PedidoVendedor> correctamente tipado.
+
 // ══════════════════════════════════════════════════════════
 //  NOTIFIER — acciones de ruta
 // ══════════════════════════════════════════════════════════
@@ -74,10 +78,10 @@ class RutaAccionNotifier extends StateNotifier<RutaAccionState> {
       await ApiClient.post(
         '/ruta-activa/registrar-llegada',
         data: {
-          'sesion_id': sesionId,
+          'sesion_id':  sesionId,
           'empresa_id': empresaId,
-          'lat': lat,
-          'lng': lng,
+          'lat':        lat,
+          'lng':        lng,
         },
       );
       return true;
@@ -98,10 +102,10 @@ class RutaAccionNotifier extends StateNotifier<RutaAccionState> {
       await ApiClient.post(
         '/ruta-activa/marcar-visitada',
         data: {
-          'sesion_id': sesionId,
+          'sesion_id':  sesionId,
           'empresa_id': empresaId,
-          'lat': lat,
-          'lng': lng,
+          'lat':        lat,
+          'lng':        lng,
         },
       );
       if (!mounted) return null;

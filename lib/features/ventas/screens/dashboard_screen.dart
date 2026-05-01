@@ -5,7 +5,7 @@ import '../../../core/constants/colores.dart';
 import '../providers/reporte_provider.dart';
 import '../providers/ventas_provider.dart';
 import '../providers/pedidos_vendedor_provider.dart';
-import '../providers/ruta_activa_provider.dart';
+
 
 import '../shell/shell_providers.dart';
 import 'historial_screen.dart';

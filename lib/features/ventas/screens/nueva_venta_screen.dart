@@ -11,16 +11,58 @@ import '../../../shared/models/cliente_model.dart';
 import '../providers/reporte_provider.dart';
 import '../providers/ventas_provider.dart';
 
+// ══════════════════════════════════════════════════════════
+//  SCREEN PRINCIPAL
+// ══════════════════════════════════════════════════════════
+
 class NuevaVentaScreen extends ConsumerStatefulWidget {
-  const NuevaVentaScreen({super.key});
+  // ── Parámetros opcionales para pre-llenar desde reserva ──
+  final String?       reservaId;
+  final ClienteModel? clienteInicial;
+  final List<({String productoId, String nombre,
+               double precio, int cantidad})> productosIniciales;
+
+  const NuevaVentaScreen({
+    super.key,
+    this.reservaId,
+    this.clienteInicial,
+    this.productosIniciales = const [],
+  });
 
   @override
   ConsumerState<NuevaVentaScreen> createState() => _NuevaVentaScreenState();
 }
 
+// ══════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════
+
 class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
   final _notasCtrl         = TextEditingController();
   final _buscarClienteCtrl = TextEditingController();
+
+  // ── Helpers ──────────────────────────────────────────────
+  bool get _esDesdeReserva => widget.reservaId != null;
+
+  NuevaVentaState _estadoInicial() {
+    if (!_esDesdeReserva) return const NuevaVentaState();
+
+    final carrito = widget.productosIniciales.map((p) {
+      final producto = ProductoModel(
+        id:         p.productoId,
+        nombre:     p.nombre,
+        precio:     p.precio,
+      );
+      return ItemCarrito(producto: producto, cantidad: p.cantidad);
+    }).toList();
+
+    return NuevaVentaState(
+      tipo:         'contado',
+      clienteSelec: widget.clienteInicial,
+      carrito:      carrito,
+      reservaId:    widget.reservaId,
+    );
+  }
 
   @override
   void dispose() {
@@ -29,21 +71,30 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
     super.dispose();
   }
 
+  // ══════════════════════════════════════════════════════════
+  //  BUILD
+  // ══════════════════════════════════════════════════════════
+
   @override
   Widget build(BuildContext context) {
-    final state          = ref.watch(nuevaVentaProvider);
+    final provider = _esDesdeReserva
+        ? nuevaVentaInicialProvider(_estadoInicial())
+        : nuevaVentaProvider;
+
+    final state          = ref.watch(provider);
     final productosAsync = ref.watch(productosProvider);
     final clientesAsync  = ref.watch(clientesProvider);
+    final stockAsync     = ref.watch(stockRestanteProvider);
 
-    final stockAsync = ref.watch(stockRestanteProvider);
     final stockMap = stockAsync.maybeWhen(
       data: (s) => Map<String, int>.fromEntries(
           s.productos.map((p) => MapEntry(p.productoId, p.cantidadRestante))),
       orElse: () => <String, int>{},
     );
 
-    ref.listen<NuevaVentaState>(nuevaVentaProvider, (prev, next) {
+    ref.listen<NuevaVentaState>(provider, (prev, next) {
       if (next.exitoso) {
+        ref.invalidate(stockRestanteProvider);
         ref.invalidate(historialVentasProvider('hoy'));
         ref.invalidate(historialVentasProvider('ayer'));
         ref.invalidate(historialVentasProvider('semana'));
@@ -63,7 +114,7 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
           ),
         );
         Future.delayed(const Duration(milliseconds: 300), () {
-          if (context.mounted) context.pop();
+          if (context.mounted) context.pop(true); // ← devuelve true
         });
       }
       if (next.error != null) {
@@ -81,31 +132,42 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
       appBar: AppBar(
         backgroundColor: AppColores.primary,
         foregroundColor: Colors.white,
-        title: const Text('Nueva Venta',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          _esDesdeReserva ? 'Entregar Reserva' : 'Nueva Venta',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
       ),
       bottomNavigationBar: _BottomBar(
         total:    state.total,
         cargando: state.cargando,
-        onTap:    () =>
-            ref.read(nuevaVentaProvider.notifier).registrarVenta(),
+        label:    _esDesdeReserva ? 'Confirmar Entrega' : 'Registrar Venta',
+        onTap:    () => ref.read(provider.notifier).registrarVenta(),
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
 
-          // ── Tipo de venta ────────────────────────────────
-          const _SeccionTitulo(titulo: '1. Tipo de venta'),
-          const SizedBox(height: 10),
-          _SelectorTipo(
-            seleccionado: state.tipo,
-            onChange: (tipo) =>
-                ref.read(nuevaVentaProvider.notifier).cambiarTipo(tipo),
-          ),
-          const SizedBox(height: 24),
+          // ── Banner reserva ───────────────────────────────
+          if (_esDesdeReserva) ...[
+            _BannerReserva(
+                cliente: widget.clienteInicial?.nombre ?? 'Cliente'),
+            const SizedBox(height: 20),
+          ],
 
-          // ── Cliente (solo crédito) ───────────────────────
-          if (state.tipo == 'credito') ...[
+          // ── Tipo de venta (solo si NO es reserva) ────────
+          if (!_esDesdeReserva) ...[
+            const _SeccionTitulo(titulo: '1. Tipo de venta'),
+            const SizedBox(height: 10),
+            _SelectorTipo(
+              seleccionado: state.tipo,
+              onChange: (tipo) =>
+                  ref.read(provider.notifier).cambiarTipo(tipo),
+            ),
+            const SizedBox(height: 24),
+          ],
+
+          // ── Cliente (solo crédito y NO reserva) ──────────
+          if (state.tipo == 'credito' && !_esDesdeReserva) ...[
             const _SeccionTitulo(titulo: '2. Cliente'),
             const SizedBox(height: 10),
             clientesAsync.when(
@@ -118,7 +180,7 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
                 seleccionado:  state.clienteSelec,
                 buscarCtrl:    _buscarClienteCtrl,
                 onSeleccionar: (c) => ref
-                    .read(nuevaVentaProvider.notifier)
+                    .read(provider.notifier)
                     .seleccionarCliente(c),
               ),
             ),
@@ -127,28 +189,34 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
 
           // ── Productos ────────────────────────────────────
           _SeccionTitulo(
-            titulo: state.tipo == 'credito'
-                ? '3. Productos'
-                : '2. Productos',
+            titulo: _esDesdeReserva
+                ? 'Productos de la reserva'
+                : state.tipo == 'credito'
+                    ? '3. Productos'
+                    : '2. Productos',
           ),
           const SizedBox(height: 10),
-          productosAsync.when(
-            loading: () =>
-                const Center(child: CircularProgressIndicator()),
-            error: (e, _) =>
-                const Text('Error cargando productos'),
-            data: (productos) => _ListaProductos(
-              productos:       productos,
-              carrito:         state.carrito,
-              stockDisponible: stockMap,
-              onChange:        (id, delta) => ref
-                  .read(nuevaVentaProvider.notifier)
-                  .cambiarCantidad(id, delta),
-              onAgregar: (p) => ref
-                  .read(nuevaVentaProvider.notifier)
-                  .agregarProducto(p),
+
+          if (_esDesdeReserva)
+            _ListaProductosReserva(carrito: state.carrito)
+          else
+            productosAsync.when(
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, _) =>
+                  const Text('Error cargando productos'),
+              data: (productos) => _ListaProductos(
+                productos:       productos,
+                carrito:         state.carrito,
+                stockDisponible: stockMap,
+                onChange: (id, delta) => ref
+                    .read(provider.notifier)
+                    .cambiarCantidad(id, delta),
+                onAgregar: (p) => ref
+                    .read(provider.notifier)
+                    .agregarProducto(p),
+              ),
             ),
-          ),
           const SizedBox(height: 24),
 
           // ── Resumen carrito ──────────────────────────────
@@ -171,7 +239,7 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
             controller: _notasCtrl,
             maxLines:   2,
             onChanged:  (v) => ref
-                .read(nuevaVentaProvider.notifier)
+                .read(provider.notifier)
                 .actualizarNotas(v),
             decoration: InputDecoration(
               hintText:  'Ej: Entrega a las 10am...',
@@ -190,7 +258,7 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
 }
 
 // ══════════════════════════════════════════════════════════
-//  WIDGETS INTERNOS
+//  WIDGETS INTERNOS  (sin cambios)
 // ══════════════════════════════════════════════════════════
 
 class _SeccionTitulo extends StatelessWidget {
@@ -485,11 +553,11 @@ class _ListaProductos extends StatelessWidget {
     required this.onAgregar,
   });
 
-  
   int _stockRestante(String productoId) {
-    if (stockDisponible.isEmpty) return 999; 
-    return stockDisponible[productoId] ?? 0; 
+    if (stockDisponible.isEmpty) return 999;
+    return stockDisponible[productoId] ?? 0;
   }
+
   int _cantidadEn(String productoId) {
     final item = carrito.where((i) => i.producto.id == productoId);
     return item.isEmpty ? 0 : item.first.cantidad;
@@ -708,11 +776,14 @@ class _ResumenCarrito extends StatelessWidget {
 class _BottomBar extends StatelessWidget {
   final double       total;
   final bool         cargando;
+  final String       label;
   final VoidCallback onTap;
+
   const _BottomBar({
     required this.total,
     required this.cargando,
     required this.onTap,
+    this.label = 'Registrar Venta',
   });
 
   @override
@@ -763,13 +834,107 @@ class _BottomBar extends StatelessWidget {
                     width: 22, height: 22,
                     child: CircularProgressIndicator(
                         color: Colors.white, strokeWidth: 2.5))
-                : const Text('Registrar Venta',
-                    style: TextStyle(
+                : Text(label,
+                    style: const TextStyle(
                         fontSize:   16,
                         fontWeight: FontWeight.bold)),
           ),
         ),
       ),
     ]),
+  );
+}
+
+// ── Banner reserva ─────────────────────────────────────────
+class _BannerReserva extends StatelessWidget {
+  final String cliente;
+  const _BannerReserva({required this.cliente});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color:        AppColores.accent.withOpacity(0.08),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: AppColores.accent.withOpacity(0.3)),
+    ),
+    child: Row(children: [
+      const Text('📋', style: TextStyle(fontSize: 22)),
+      const SizedBox(width: 12),
+      Expanded(child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Entregando reserva',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color:      AppColores.accent,
+                  fontSize:   14)),
+          Text('Cliente: $cliente',
+              style: const TextStyle(
+                  fontSize: 12,
+                  color:    AppColores.textSecond)),
+        ],
+      )),
+    ]),
+  );
+}
+
+// ── Lista fija para reservas (no editable) ────────────────
+class _ListaProductosReserva extends StatelessWidget {
+  final List<ItemCarrito> carrito;
+  const _ListaProductosReserva({required this.carrito});
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: carrito.map((item) => Container(
+      margin:  const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color:        Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColores.accent.withOpacity(0.3)),
+      ),
+      child: Row(children: [
+        Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(
+            color:        AppColores.accent.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Center(child: Text(
+            item.producto.nombre[0].toUpperCase(),
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color:      AppColores.accent,
+                fontSize:   18),
+          )),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(item.producto.nombre,
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color:      AppColores.textPrimary)),
+            Text('\$${item.producto.precio.toStringAsFixed(2)} c/u',
+                style: const TextStyle(
+                    fontSize: 12, color: AppColores.textSecond)),
+          ],
+        )),
+        Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color:        AppColores.accent.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text('${item.cantidad} uds',
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color:      AppColores.accent)),
+        ),
+      ]),
+    )).toList(),
   );
 }
