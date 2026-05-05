@@ -172,8 +172,9 @@ class _EntregarReservaScreenState
     final productos = reserva.items.map((item) => (
       productoId: item['producto_id'] as String,
       nombre:     item['nombre']      as String,
-      precio:    (item['precio_unit'] as num).toDouble(),
+      precio:     (item['precio_unit'] as num).toDouble(),
       cantidad:   item['cantidad']    as int,
+      imagenUrl:  item['imagen_url'] as String?,  
     )).toList();
 
     // Buscar cliente

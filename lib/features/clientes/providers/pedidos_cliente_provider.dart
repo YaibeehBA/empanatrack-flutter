@@ -3,7 +3,7 @@ import '../../../core/network/api_client.dart';
 import '../screens/cliente_shell.dart';
 
 // ══════════════════════════════════════════════════════════
-//  MODELOS
+//  MODELOS 
 // ══════════════════════════════════════════════════════════
 class ItemCarrito {
   final ProductoDisponible producto;
@@ -42,7 +42,7 @@ class ConfiguracionPago {
 
 class PedidoCliente {
   final String  id;
-  final String  tipo;           // 'normal' | 'reserva'
+  final String  tipo;
   final String  estado;
   final String  tipoPago;
   final double  total;
@@ -76,23 +76,21 @@ class PedidoCliente {
   });
 
   bool get esReserva => tipo == 'reserva';
-
-  String get tipoLabel =>
-      esReserva ? '📦 Reserva' : '🚚 Entrega';
+  String get tipoLabel => esReserva ? '📦 Reserva' : '🚚 Entrega';
 
   factory PedidoCliente.fromJson(Map<String, dynamic> j) =>
       PedidoCliente(
         id:               j['id'],
-        tipo:             j['tipo'] ?? 'normal',
+        tipo:             j['tipo']      ?? 'normal',
         estado:           j['estado'],
         tipoPago:         j['tipo_pago'],
-        total:            (j['total'] as num).toDouble(),
+        total:            (j['total']    as num).toDouble(),
         costoEnvio:       (j['costo_envio'] as num?)?.toDouble() ?? 0.0,
         vendedorNombre:   j['vendedor_nombre'],
         empresaNombre:    j['empresa_nombre'],
         empresaId:        j['empresa_id'],
         direccionEntrega: j['direccion_entrega'],
-        latitudEntrega:   j['latitud_entrega']  != null
+        latitudEntrega:   j['latitud_entrega'] != null
             ? (j['latitud_entrega']  as num).toDouble() : null,
         longitudEntrega:  j['longitud_entrega'] != null
             ? (j['longitud_entrega'] as num).toDouble() : null,
@@ -116,14 +114,14 @@ class PedidoCliente {
 }
 
 // ══════════════════════════════════════════════════════════
-//  CARRITO
+//  CARRITO (sin cambios)
 // ══════════════════════════════════════════════════════════
 class CarritoState {
   final List<ItemCarrito> items;
   const CarritoState({this.items = const []});
 
   double get total      => items.fold(0, (s, i) => s + i.subtotal);
-  int get cantidadTotal => items.fold(0, (s, i) => s + i.cantidad);
+  int    get cantidadTotal => items.fold(0, (s, i) => s + i.cantidad);
 
   int cantidadDeProducto(String productoId) =>
       items.firstWhere(
@@ -183,7 +181,7 @@ final carritoProvider =
 );
 
 // ══════════════════════════════════════════════════════════
-//  CONFIGURACIÓN DE PAGO
+//  CONFIGURACIÓN DE PAGO (sin cambios)
 // ══════════════════════════════════════════════════════════
 final configuracionPagoProvider =
     FutureProvider<ConfiguracionPago>((ref) async {
@@ -192,18 +190,81 @@ final configuracionPagoProvider =
 });
 
 // ══════════════════════════════════════════════════════════
-//  MIS PEDIDOS
+//  MIS PEDIDOS — PAGINADO
+//  Reemplaza el anterior FutureProvider simple
 // ══════════════════════════════════════════════════════════
+class MisPedidosNotifier
+    extends StateNotifier<AsyncValue<List<PedidoCliente>>> {
+
+  MisPedidosNotifier() : super(const AsyncValue.loading()) {
+    _cargarPagina(1);
+  }
+
+  int  _paginaActual = 1;
+  bool _tieneMas     = false;
+  bool _cargandoMas  = false;
+  int  _total        = 0;
+
+  bool get tieneMas    => _tieneMas;
+  bool get cargandoMas => _cargandoMas;
+  int  get total       => _total;
+
+  Future<void> _cargarPagina(int pagina) async {
+    try {
+      final r = await ApiClient.get(
+        '/pedidos/mis-pedidos',
+        params: {'pagina': pagina, 'por_pagina': 10},
+      );
+
+      final data    = r.data as Map<String, dynamic>;
+      final nuevos  = (data['datos'] as List)
+          .map((p) => PedidoCliente.fromJson(p))
+          .toList();
+
+      _paginaActual = data['pagina']    as int;
+      _total        = data['total']     as int;
+      _tieneMas     = data['tiene_mas'] as bool;
+
+      if (pagina == 1) {
+        if (mounted) state = AsyncValue.data(nuevos);
+      } else {
+        state.whenData((existentes) {
+          if (mounted) {
+            state = AsyncValue.data([...existentes, ...nuevos]);
+          }
+        });
+      }
+    } catch (e, st) {
+      if (pagina == 1 && mounted) {
+        state = AsyncValue.error(e, st);
+      }
+    }
+  }
+
+  Future<void> cargarMas() async {
+    if (!_tieneMas || _cargandoMas) return;
+    _cargandoMas = true;
+    await _cargarPagina(_paginaActual + 1);
+    _cargandoMas = false;
+  }
+
+  Future<void> recargar() async {
+    if (mounted) state = const AsyncValue.loading();
+    _paginaActual = 1;
+    _tieneMas     = false;
+    _total        = 0;
+    await _cargarPagina(1);
+  }
+}
+
 final misPedidosProvider =
-    FutureProvider<List<PedidoCliente>>((ref) async {
-  final r = await ApiClient.get('/pedidos/mis-pedidos');
-  return (r.data as List)
-      .map((p) => PedidoCliente.fromJson(p))
-      .toList();
-});
+    StateNotifierProvider.autoDispose<MisPedidosNotifier,
+        AsyncValue<List<PedidoCliente>>>(
+  (ref) => MisPedidosNotifier(),
+);
 
 // ══════════════════════════════════════════════════════════
-//  CREAR PEDIDO
+//  CREAR PEDIDO (sin cambios)
 // ══════════════════════════════════════════════════════════
 class CrearPedidoState {
   final bool    cargando;
@@ -239,7 +300,7 @@ class CrearPedidoNotifier
     required List<ItemCarrito> items,
     required String            tipoPago,
     required String            tipoPedido,
-    String?                    empresaId,   // ← obligatorio en reserva
+    String?                    empresaId,
     double?                    latitud,
     double?                    longitud,
     String?                    notas,
@@ -257,12 +318,9 @@ class CrearPedidoNotifier
         'longitud_entrega': longitud,
         'notas':            notas,
       };
-
-      // El backend valida que reserva tenga empresa_id
       if (tipoPedido == 'reserva' && empresaId != null) {
         body['empresa_id'] = empresaId;
       }
-
       final r = await ApiClient.post('/pedidos/', data: body);
       state = state.copyWith(
         cargando: false,

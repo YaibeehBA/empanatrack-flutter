@@ -167,7 +167,11 @@ class ReservasDisponiblesNotifier
     _wsSub?.cancel();
     _wsSub = WebSocketService().mensajes.listen((msg) {
       final tipo = msg['tipo'] as String?;
-      if (tipo == 'nueva_reserva') _cargar();
+      
+      if (tipo == 'nueva_reserva') {
+        _cargar();
+      }
+      
       if (tipo == 'reserva_aceptada_propia') {
         final id = msg['pedido_id'] as String?;
         if (id != null && mounted) {
@@ -176,7 +180,19 @@ class ReservasDisponiblesNotifier
           });
         }
       }
-      if (tipo == 'reserva_cancelada' || tipo == 'reserva_liberada') {
+      
+      // ✅ NUEVO: Manejar cancelación en tiempo real
+      if (tipo == 'reserva_cancelada') {
+        final id = msg['pedido_id'] as String?;
+        if (id != null && mounted) {
+          state.whenData((lista) {
+            // Remover la reserva cancelada de la lista disponible
+            state = AsyncValue.data(lista.where((p) => p.id != id).toList());
+          });
+        }
+      }
+      
+      if (tipo == 'reserva_liberada') {
         _cargar();
       }
     });
@@ -312,6 +328,55 @@ class AceptarReservaNotifier extends StateNotifier<AceptarReservaState> {
 }
 
 // ══════════════════════════════════════════════════════════
+//  NOTIFIER — Cancelar reserva disponible (sin aceptar) ✅ NUEVO
+// ══════════════════════════════════════════════════════════
+class CancelarReservaState {
+  final bool    cargando;
+  final String? error;
+  final bool    exitoso;
+
+  const CancelarReservaState({
+    this.cargando = false,
+    this.error,
+    this.exitoso  = false,
+  });
+
+  CancelarReservaState copyWith({
+    bool?   cargando,
+    String? error,
+    bool?   exitoso,
+  }) => CancelarReservaState(
+    cargando: cargando ?? this.cargando,
+    error:    error,
+    exitoso:  exitoso ?? this.exitoso,
+  );
+}
+
+class CancelarReservaNotifier extends StateNotifier<CancelarReservaState> {
+  CancelarReservaNotifier() : super(const CancelarReservaState());
+
+  /// Cancela una reserva disponible (pendiente, sin aceptarla).
+  /// Solo descarta la reserva de la lista del vendedor.
+  Future<void> cancelar(String pedidoId) async {
+    state = state.copyWith(cargando: true);
+    try {
+      await ApiClient.post(
+        '/pedidos/$pedidoId/cancelar-reserva-disponible',
+        data: {},
+      );
+      state = state.copyWith(cargando: false, exitoso: true);
+    } catch (e) {
+      state = state.copyWith(
+        cargando: false,
+        error: parsearErrorDio(e),
+      );
+    }
+  }
+
+  void resetear() => state = const CancelarReservaState();
+}
+
+// ══════════════════════════════════════════════════════════
 //  PROVIDERS
 // ══════════════════════════════════════════════════════════
 
@@ -328,6 +393,12 @@ final reservasActivasProvider = StateNotifierProvider<
 final aceptarReservaProvider = StateNotifierProvider.autoDispose<
     AceptarReservaNotifier, AceptarReservaState>(
   (ref) => AceptarReservaNotifier(),
+);
+
+// ✅ NUEVO: Provider para cancelar reserva disponible
+final cancelarReservaDisponibleProvider = StateNotifierProvider.autoDispose<
+    CancelarReservaNotifier, CancelarReservaState>(
+  (ref) => CancelarReservaNotifier(),
 );
 
 // ── Aliases de compatibilidad ─────────────────────────────

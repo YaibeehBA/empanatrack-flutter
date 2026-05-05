@@ -19,7 +19,7 @@ class NuevaVentaScreen extends ConsumerStatefulWidget {
   final String?       reservaId;
   final ClienteModel? clienteInicial;
   final List<({String productoId, String nombre,
-               double precio, int cantidad})> productosIniciales;
+               double precio, int cantidad, String? imagenUrl})> productosIniciales;
 
   const NuevaVentaScreen({
     super.key,
@@ -58,6 +58,7 @@ class _NuevaVentaScreenState extends ConsumerState<NuevaVentaScreen> {
           id:     p.productoId,
           nombre: p.nombre,
           precio: p.precio,
+          imagenUrl: p.imagenUrl,
         );
         return ItemCarrito(producto: producto, cantidad: p.cantidad);
       }).toList();
@@ -911,44 +912,84 @@ class _ListaProductosReserva extends StatelessWidget {
         border: Border.all(color: AppColores.accent.withOpacity(0.3)),
       ),
       child: Row(children: [
+
+        // 🔥 IMAGEN DEL PRODUCTO (con fallback)
         Container(
-          width: 44, height: 44,
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
-            color:        AppColores.accent.withOpacity(0.1),
+            color: AppColores.accent.withOpacity(0.1),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Center(child: Text(
-            item.producto.nombre[0].toUpperCase(),
-            style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color:      AppColores.accent,
-                fontSize:   18),
-          )),
+          child: item.producto.imagenUrl != null &&
+                  item.producto.imagenUrl!.isNotEmpty
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.network(
+                    item.producto.imagenUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Center(
+                      child: Text(
+                        item.producto.nombre[0].toUpperCase(),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColores.accent,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              : Center(
+                  child: Text(
+                    item.producto.nombre[0].toUpperCase(),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColores.accent,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
         ),
+
         const SizedBox(width: 12),
-        Expanded(child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(item.producto.nombre,
+
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item.producto.nombre,
                 style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color:      AppColores.textPrimary)),
-            Text('\$${item.producto.precio.toStringAsFixed(2)} c/u',
+                  fontWeight: FontWeight.bold,
+                  color: AppColores.textPrimary,
+                ),
+              ),
+              Text(
+                '\$${item.producto.precio.toStringAsFixed(2)} c/u',
                 style: const TextStyle(
-                    fontSize: 12, color: AppColores.textSecond)),
-          ],
-        )),
+                  fontSize: 12,
+                  color: AppColores.textSecond,
+                ),
+              ),
+            ],
+          ),
+        ),
+
         Container(
           padding: const EdgeInsets.symmetric(
               horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color:        AppColores.accent.withOpacity(0.1),
+            color: AppColores.accent.withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Text('${item.cantidad} uds',
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color:      AppColores.accent)),
+          child: Text(
+            '${item.cantidad} uds',
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColores.accent,
+            ),
+          ),
         ),
       ]),
     )).toList(),

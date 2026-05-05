@@ -358,16 +358,16 @@ class PedidosVendedorScreen extends ConsumerWidget {
 }
 
 // ══════════════════════════════════════════════════════════
-//  CARD — RESERVA DISPONIBLE
+//  CARD — RESERVA DISPONIBLE (CON BOTÓN DE CANCELAR) ✅ NUEVO
 // ══════════════════════════════════════════════════════════
-class _CardReservaDisponible extends StatelessWidget {
+class _CardReservaDisponible extends ConsumerWidget {
   final PedidoVendedor pedido;
   final VoidCallback   onAceptar;
   const _CardReservaDisponible(
       {required this.pedido, required this.onAceptar});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       margin:  const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -482,21 +482,181 @@ class _CardReservaDisponible extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 12),
-          SizedBox(
-            width:  double.infinity,
-            height: 44,
-            child: ElevatedButton.icon(
-              onPressed: onAceptar,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColores.success,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+
+          // ══════════════════════════════════════════════════════════
+          //  BOTONES: Aceptar + Cancelar (en fila)
+          // ══════════════════════════════════════════════════════════
+          Row(
+            children: [
+              // Botón ACEPTAR (derecha, expandido)
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: onAceptar,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColores.success,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon:  const Icon(Icons.check_circle_outline, size: 18),
+                  label: const Text('Aceptar',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
               ),
-              icon:  const Icon(Icons.check_circle_outline, size: 18),
-              label: const Text('Aceptar reserva',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+
+              const SizedBox(width: 8),
+
+              // Botón CANCELAR (izquierda, outlined)
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () =>
+                      _confirmarCancelar(context, ref, pedido.id),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColores.warning,
+                    side: BorderSide(
+                        color: AppColores.warning.withOpacity(0.5)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon:  const Icon(Icons.close, size: 16),
+                  label: const Text('Cancelar',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize:   13,
+                      )),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Diálogo de confirmación para cancelar la reserva disponible
+  void _confirmarCancelar(
+      BuildContext context, WidgetRef ref, String pedidoId) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16)),
+        title: Row(children: [
+          const Text('⚠️', style: TextStyle(fontSize: 22)),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text('Cancelar reserva',
+                style: TextStyle(fontSize: 16)),
+          ),
+        ]),
+        content: Column(
+          mainAxisSize:       MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                    color: AppColores.textPrimary, fontSize: 14),
+                children: [
+                  const TextSpan(
+                      text: '¿Cancelar la reserva de '),
+                  TextSpan(
+                    text:  pedido.clienteNombre,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const TextSpan(text: '?'),
+                ],
+              ),
             ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color:        AppColores.warning.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                    color: AppColores.warning.withOpacity(0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline,
+                      color: AppColores.warning, size: 16),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'El cliente será notificado de que rechazaste '
+                      'la reserva. Podrá hacer una nueva si lo desea.',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColores.warning),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child:     const Text('Volver'),
+          ),
+          Consumer(
+            builder: (ctx, ref2, _) {
+              final state = ref2.watch(cancelarReservaDisponibleProvider);
+
+              ref2.listen<CancelarReservaState>(
+                  cancelarReservaDisponibleProvider, (_, next) {
+                if (next.exitoso) {
+                  Navigator.pop(ctx);
+                  // Invalidar providers para actualizar listas
+                  ref.invalidate(reservasDisponiblesProvider);
+                  ref.invalidate(reservasActivasProvider);
+                  ref2
+                      .read(cancelarReservaDisponibleProvider.notifier)
+                      .resetear();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ Reserva cancelada'),
+                      backgroundColor: AppColores.warning,
+                    ),
+                  );
+                }
+                if (next.error != null) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(next.error!),
+                      backgroundColor: AppColores.danger,
+                    ),
+                  );
+                  ref2
+                      .read(cancelarReservaDisponibleProvider.notifier)
+                      .resetear();
+                }
+              });
+
+              return ElevatedButton(
+                onPressed: state.cargando
+                    ? null
+                    : () => ref2
+                        .read(cancelarReservaDisponibleProvider.notifier)
+                        .cancelar(pedidoId),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColores.warning,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: state.cargando
+                    ? const SizedBox(
+                        width:  18,
+                        height: 18,
+                        child:  CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Text('Sí, cancelar'),
+              );
+            },
           ),
         ],
       ),

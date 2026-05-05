@@ -523,16 +523,34 @@ class _StockProductoRow extends StatelessWidget {
                   : AppColores.accent.withOpacity(0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Center(
-              child: Text(
-                producto.nombre[0].toUpperCase(),
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: agotado ? AppColores.danger : AppColores.accent,
+            child: producto.imagenUrl != null && producto.imagenUrl!.isNotEmpty
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.network(
+                    producto.imagenUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Center(
+                      child: Text(
+                        producto.nombre[0].toUpperCase(),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: agotado ? AppColores.danger : AppColores.accent,
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              : Center(
+                  child: Text(
+                    producto.nombre[0].toUpperCase(),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: agotado ? AppColores.danger : AppColores.accent,
+                    ),
+                  ),
                 ),
-              ),
-            ),
           ),
           const SizedBox(width: 12),
           Expanded(

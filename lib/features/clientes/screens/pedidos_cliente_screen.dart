@@ -12,7 +12,8 @@ class PedidosClienteScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(misPedidosProvider);
+    final async    = ref.watch(misPedidosProvider);
+    final notifier = ref.read(misPedidosProvider.notifier);
 
     return Scaffold(
       backgroundColor: AppColores.background,
@@ -25,7 +26,7 @@ class PedidosClienteScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon:      const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(misPedidosProvider),
+            onPressed: () => notifier.recargar(),
           ),
         ],
       ),
@@ -39,24 +40,20 @@ class PedidosClienteScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             const Text('Error al cargar pedidos',
                 style: TextStyle(color: AppColores.textSecond)),
+            const SizedBox(height: 12),
             ElevatedButton(
-              onPressed: () => ref.invalidate(misPedidosProvider),
-              child: const Text('Reintentar'),
+              onPressed: () => notifier.recargar(),
+              child:     const Text('Reintentar'),
             ),
           ],
         )),
         data: (pedidos) => pedidos.isEmpty
             ? const _SinPedidos()
             : RefreshIndicator(
-                onRefresh: () async =>
-                    ref.invalidate(misPedidosProvider),
-                child: ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: pedidos.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(height: 12),
-                  itemBuilder: (_, i) =>
-                      _CardPedido(pedido: pedidos[i]),
+                onRefresh: () => notifier.recargar(),
+                child: _ListaPedidos(
+                  pedidos:  pedidos,
+                  notifier: notifier,
                 ),
               ),
       ),
@@ -65,7 +62,136 @@ class PedidosClienteScreen extends ConsumerWidget {
 }
 
 // ══════════════════════════════════════════════════════════
-//  CARD PEDIDO
+//  LISTA CON CARGAR MÁS
+// ══════════════════════════════════════════════════════════
+class _ListaPedidos extends StatefulWidget {
+  final List<PedidoCliente>  pedidos;
+  final MisPedidosNotifier   notifier;
+
+  const _ListaPedidos({
+    required this.pedidos,
+    required this.notifier,
+  });
+
+  @override
+  State<_ListaPedidos> createState() => _ListaPedidosState();
+}
+
+class _ListaPedidosState extends State<_ListaPedidos> {
+
+  bool _cargando = false;
+
+  Future<void> _cargarMas() async {
+    if (_cargando) return;
+    setState(() => _cargando = true);
+    await widget.notifier.cargarMas();
+    if (mounted) setState(() => _cargando = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding:          const EdgeInsets.all(16),
+      itemCount:        widget.pedidos.length + 1, // +1 para el footer
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (ctx, i) {
+        // Último item → footer con contador y botón cargar más
+        if (i == widget.pedidos.length) {
+          return _Footer(
+            total:     widget.notifier.total,
+            mostrados: widget.pedidos.length,
+            tieneMas:  widget.notifier.tieneMas,
+            cargando:  _cargando,
+            onCargarMas: _cargarMas,
+          );
+        }
+        return _CardPedido(pedido: widget.pedidos[i]);
+      },
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  FOOTER — contador + botón cargar más
+// ══════════════════════════════════════════════════════════
+class _Footer extends StatelessWidget {
+  final int          total;
+  final int          mostrados;
+  final bool         tieneMas;
+  final bool         cargando;
+  final VoidCallback onCargarMas;
+
+  const _Footer({
+    required this.total,
+    required this.mostrados,
+    required this.tieneMas,
+    required this.cargando,
+    required this.onCargarMas,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 16),
+      child: Column(children: [
+
+        // Contador
+        Text(
+          'Mostrando $mostrados de $total pedidos',
+          style: const TextStyle(
+              fontSize: 12, color: AppColores.textSecond),
+        ),
+        const SizedBox(height: 10),
+
+        // Botón cargar más
+        if (tieneMas)
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: cargando ? null : onCargarMas,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColores.primary,
+                side: BorderSide(
+                    color: AppColores.primary.withOpacity(0.4)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: cargando
+                  ? const SizedBox(
+                      width:  16,
+                      height: 16,
+                      child:  CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color:       AppColores.primary))
+                  : const Icon(Icons.expand_more_rounded),
+              label: Text(
+                cargando ? 'Cargando...' : 'Cargar más pedidos',
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold),
+              ),
+            ),
+          )
+        else
+          // Sin más registros
+          Row(children: [
+            Expanded(child: Divider(color: Colors.grey.shade300)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text('Todos tus pedidos',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color:    Colors.grey.shade400)),
+            ),
+            Expanded(child: Divider(color: Colors.grey.shade300)),
+          ]),
+      ]),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  CARD PEDIDO (sin cambios respecto al original)
 // ══════════════════════════════════════════════════════════
 class _CardPedido extends StatelessWidget {
   final PedidoCliente pedido;
@@ -90,17 +216,16 @@ class _CardPedido extends StatelessWidget {
         color:        Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color:      Colors.black.withOpacity(0.05),
             blurRadius: 8,
-            offset: const Offset(0, 2))],
+            offset:     const Offset(0, 2))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
 
-          // ── Encabezado: estado + tipo + fecha ──────────
+          // ── Encabezado ─────────────────────────────────
           Row(children: [
-            // Badge estado
             Container(
               padding: const EdgeInsets.symmetric(
                   horizontal: 10, vertical: 5),
@@ -115,8 +240,6 @@ class _CardPedido extends StatelessWidget {
                       fontSize:   12)),
             ),
             const SizedBox(width: 8),
-
-            // Badge tipo (reserva / entrega)
             Container(
               padding: const EdgeInsets.symmetric(
                   horizontal: 8, vertical: 5),
@@ -134,7 +257,6 @@ class _CardPedido extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                       fontSize:   11)),
             ),
-
             const Spacer(),
             Text(_formatFecha(pedido.creadoEn),
                 style: const TextStyle(
@@ -166,7 +288,7 @@ class _CardPedido extends StatelessWidget {
 
           const Divider(height: 20),
 
-          // ── Desglose costo envío ───────────────────────
+          // ── Envío ──────────────────────────────────────
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -175,13 +297,11 @@ class _CardPedido extends StatelessWidget {
                       fontSize: 13,
                       color:    AppColores.textSecond)),
               pedido.esReserva
-                  // Reserva → siempre gratis
                   ? const Text('Gratis',
                       style: TextStyle(
                           fontSize:   13,
                           fontWeight: FontWeight.bold,
                           color:      AppColores.success))
-                  // Entrega → mostrar costo_envio del backend
                   : Text(
                       '\$${pedido.costoEnvio.toStringAsFixed(2)}',
                       style: const TextStyle(
@@ -195,7 +315,6 @@ class _CardPedido extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Método de pago (oculto en reserva)
               if (!pedido.esReserva)
                 Row(children: [
                   Icon(
@@ -214,7 +333,6 @@ class _CardPedido extends StatelessWidget {
                   ),
                 ])
               else
-                // En reserva mostrar empresa si existe
                 Row(children: [
                   const Icon(Icons.store_outlined,
                       size: 16, color: AppColores.accent),
@@ -227,8 +345,6 @@ class _CardPedido extends StatelessWidget {
                         fontWeight: FontWeight.w600),
                   ),
                 ]),
-
-              // Total
               Text(
                 '\$${pedido.total.toStringAsFixed(2)}',
                 style: const TextStyle(
@@ -239,7 +355,7 @@ class _CardPedido extends StatelessWidget {
             ],
           ),
 
-          // ── Vendedor asignado ──────────────────────────
+          // ── Vendedor ───────────────────────────────────
           if (pedido.vendedorNombre != null) ...[
             const SizedBox(height: 8),
             Row(children: [
@@ -254,7 +370,7 @@ class _CardPedido extends StatelessWidget {
             ]),
           ],
 
-          // ── Botón tracking (solo entrega en camino) ────
+          // ── Botón tracking ─────────────────────────────
           if (!pedido.esReserva &&
               (pedido.estado == 'en_camino' ||
                pedido.estado == 'aceptado')) ...[
@@ -276,8 +392,7 @@ class _CardPedido extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
                 ),
-                icon:  const Icon(Icons.delivery_dining,
-                    size: 18),
+                icon:  const Icon(Icons.delivery_dining, size: 18),
                 label: const Text('Ver repartidor en mapa',
                     style: TextStyle(
                         fontWeight: FontWeight.bold)),

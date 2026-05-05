@@ -5,12 +5,14 @@ import '../models/pedido_models.dart';
 class PedidoCard extends StatelessWidget {
   final PedidoBase   pedido;
   final VoidCallback onAceptar;
+  final VoidCallback onCancelar;  // ✅ NUEVO - Obligatorio
   final bool         cargando;
 
   const PedidoCard({
     super.key,
     required this.pedido,
     required this.onAceptar,
+    required this.onCancelar,  // ✅ NUEVO
     this.cargando = false,
   });
 
@@ -116,7 +118,6 @@ class PedidoCard extends StatelessWidget {
 
         const SizedBox(height: 12),
 
-        // Chips info + botón aceptar
         Row(children: [
           _PagoChip(tipoPago: pedido.tipoPago),
           if (pedido.tieneCoordenadas)
@@ -125,6 +126,7 @@ class PedidoCard extends StatelessWidget {
               child: _GpsChip(),
             ),
           const Spacer(),
+          // Botón ACEPTAR
           SizedBox(
             height: 38,
             child: ElevatedButton(
@@ -145,6 +147,24 @@ class PedidoCard extends StatelessWidget {
                       pedido.esReserva ? 'Reservar' : 'Aceptar',
                       style: const TextStyle(
                           fontWeight: FontWeight.bold)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            height: 38,
+            child: OutlinedButton.icon(
+              onPressed: cargando ? null : onCancelar,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColores.warning,
+                side: BorderSide(
+                    color: AppColores.warning.withOpacity(0.5)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              icon: const Icon(Icons.close, size: 16),
+              label: const Text('Cancelar',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
             ),
           ),
         ]),

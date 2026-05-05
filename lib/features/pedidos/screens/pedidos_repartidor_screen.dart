@@ -11,6 +11,80 @@ import 'mapa_entrega_screen.dart';
 class PedidosRepartidorScreen extends ConsumerWidget {
   const PedidosRepartidorScreen({super.key});
 
+  void _confirmarCancelar(BuildContext context, WidgetRef ref, String pedidoId) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(children: [
+          Text('⚠️', style: TextStyle(fontSize: 22)),
+          SizedBox(width: 8),
+          Text('Cancelar pedido'),
+        ]),
+        content: const Text('¿Estás seguro de cancelar este pedido? El cliente será notificado.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Volver'),
+          ),
+          Consumer(
+            builder: (ctx, ref2, _) {
+              final state = ref2.watch(cancelarPedidoDisponibleProvider);
+
+              ref2.listen<CancelarPedidoState>(
+                  cancelarPedidoDisponibleProvider, (_, next) {
+                if (next.exitoso) {
+                  Navigator.pop(ctx);
+                  ref.invalidate(pedidosRepartidorProvider);
+                  ref.invalidate(pedidoActivoRepartidorProvider);
+                  ref2.read(cancelarPedidoDisponibleProvider.notifier).resetear();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ Pedido cancelado'),
+                      backgroundColor: AppColores.warning,
+                    ),
+                  );
+                }
+                if (next.error != null) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(next.error!),
+                      backgroundColor: AppColores.danger,
+                    ),
+                  );
+                  ref2.read(cancelarPedidoDisponibleProvider.notifier).resetear();
+                }
+              });
+
+              return ElevatedButton(
+                onPressed: state.cargando
+                    ? null
+                    : () => ref2
+                        .read(cancelarPedidoDisponibleProvider.notifier)
+                        .cancelar(pedidoId),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColores.warning,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: state.cargando
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Text('Sí, cancelar'),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final disponiblesAsync = ref.watch(pedidosRepartidorProvider);
@@ -80,6 +154,7 @@ class PedidosRepartidorScreen extends ConsumerWidget {
                           ref.read(pedidosRepartidorProvider
                               .notifier).recargar();
                         },
+                        onCancelar: _confirmarCancelar, // 👈 AQUÍ
                       ),
                       const SizedBox(height: 20),
                     ]),
@@ -138,6 +213,7 @@ class PedidosRepartidorScreen extends ConsumerWidget {
                           cargando: accion.cargando,
                           onAceptar: () => _confirmarAceptar(
                               context, ref2, p),
+                         onCancelar: () => _confirmarCancelar(context, ref2, p.id),
                         )).toList(),
                       );
                     }),
@@ -270,11 +346,13 @@ class _CardPedidoActivo extends ConsumerWidget {
   final PedidoBase   pedido;
   final VoidCallback onVerMapa;
   final VoidCallback onActualizar;
+  final void Function(BuildContext, WidgetRef, String) onCancelar; // 👈 AÑADIDO
 
   const _CardPedidoActivo({
     required this.pedido,
     required this.onVerMapa,
     required this.onActualizar,
+    required this.onCancelar, // 👈 AÑADIDO
   });
 
   @override
@@ -446,7 +524,7 @@ class _CardPedidoActivo extends ConsumerWidget {
             child: OutlinedButton.icon(
               onPressed: accion.cargando
                   ? null
-                  : () => _confirmarCancelar(ctx, ref2),
+                  : () => onCancelar(ctx, ref2, pedido.id), // 👈 MODIFICADO
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.white60,
                 side: const BorderSide(
@@ -463,44 +541,6 @@ class _CardPedidoActivo extends ConsumerWidget {
       ],
     ),
   );
-
-  void _confirmarCancelar(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
-        title: const Row(children: [
-          Text('❌', style: TextStyle(fontSize: 22)),
-          SizedBox(width: 8),
-          Text('Cancelar pedido'),
-        ]),
-        content: const Text(
-          '¿Estás seguro de que quieres cancelar este pedido? '
-          'El cliente será notificado.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child:     const Text('Volver'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ref.read(estadoRepartidorProvider.notifier)
-                  .actualizarEstado(pedido.id, 'cancelado');
-            },
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColores.danger,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10))),
-            child: const Text('Sí, cancelar'),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ══════════════════════════════════════════════════════════

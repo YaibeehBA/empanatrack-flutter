@@ -117,6 +117,16 @@ class PedidosDisponiblesNotifier
           msg['tipo'] == 'nueva_reserva') {
         _cargar();
       }
+      // ✅ NUEVO: Escuchar cancelaciones en tiempo real
+      if (msg['tipo'] == 'pedido_cancelado') {
+        final id = msg['pedido_id'] as String?;
+        if (id != null && mounted) {
+          state.whenData((lista) {
+            // Remover el pedido cancelado de la lista
+            state = AsyncValue.data(lista.where((p) => p.id != id).toList());
+          });
+        }
+      }
     });
   }
 
@@ -208,6 +218,16 @@ class AccionPedidoState {
     this.exitoso  = false,
     this.error,
   });
+
+  AccionPedidoState copyWith({
+    bool?   cargando,
+    bool?   exitoso,
+    String? error,
+  }) => AccionPedidoState(
+    cargando: cargando ?? this.cargando,
+    exitoso:  exitoso ?? this.exitoso,
+    error:    error,
+  );
 }
 
 class AccionPedidoNotifier extends StateNotifier<AccionPedidoState> {
@@ -271,6 +291,61 @@ final estadoRepartidorProvider = StateNotifierProvider.autoDispose<
     endpointAceptar: '/pedidos/{id}/aceptar-repartidor',
     endpointEstado:  '/pedidos/{id}/estado-repartidor',
   ),
+);
+
+// ══════════════════════════════════════════════════════════
+//  NOTIFIER — Cancelar pedido disponible (sin aceptar) ✅ NUEVO
+// ══════════════════════════════════════════════════════════
+class CancelarPedidoState {
+  final bool    cargando;
+  final String? error;
+  final bool    exitoso;
+
+  const CancelarPedidoState({
+    this.cargando = false,
+    this.error,
+    this.exitoso  = false,
+  });
+
+  CancelarPedidoState copyWith({
+    bool?   cargando,
+    String? error,
+    bool?   exitoso,
+  }) => CancelarPedidoState(
+    cargando: cargando ?? this.cargando,
+    error:    error,
+    exitoso:  exitoso ?? this.exitoso,
+  );
+}
+
+class CancelarPedidoNotifier extends StateNotifier<CancelarPedidoState> {
+  CancelarPedidoNotifier() : super(const CancelarPedidoState());
+
+  /// Cancela un pedido disponible (pendiente, sin aceptarlo).
+  /// Solo descarta el pedido de la lista del repartidor.
+  Future<void> cancelar(String pedidoId) async {
+    state = state.copyWith(cargando: true);
+    try {
+      await ApiClient.post(
+        '/pedidos/$pedidoId/cancelar-pedido-disponible',
+        data: {},
+      );
+      state = state.copyWith(cargando: false, exitoso: true);
+    } catch (e) {
+      state = state.copyWith(
+        cargando: false,
+        error: _parsearError(e),
+      );
+    }
+  }
+
+  void resetear() => state = const CancelarPedidoState();
+}
+
+// ✅ NUEVO: Provider para cancelar pedido disponible
+final cancelarPedidoDisponibleProvider = StateNotifierProvider.autoDispose<
+    CancelarPedidoNotifier, CancelarPedidoState>(
+  (ref) => CancelarPedidoNotifier(),
 );
 
 // ── Vendedor (reservas) ───────────────────────────────────
