@@ -387,7 +387,7 @@ void _escucharWsReservas() {
     _gpsSub = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy:       LocationAccuracy.high,
-        distanceFilter: 5,
+        distanceFilter: 1,
       ),
     ).listen((pos) {
       if (!mounted) return;

@@ -3,14 +3,14 @@ import 'package:dio/dio.dart';
 import '../storage/token_storage.dart';
 
 class ApiClient {
-   static const _baseUrl = 'http://10.0.2.2:8000';
+   //static const _baseUrl = 'http://10.0.2.2:8000';
    static String get baseUrl => _baseUrl;
   // ⚠️ 10.0.2.2 es la IP especial del emulador Android
   // para referirse a localhost de tu PC.
   // Cuando tengas la app en celular real, cambia por
   // la IP local de tu PC: ej. http://192.168.1.x:8000
   
- // static const _baseUrl = 'https://empanatrack-backend-production.up.railway.app';
+  static const _baseUrl = 'https://empatrack.up.railway.app';
 
   static final Dio _dio = Dio(
     BaseOptions(
