@@ -218,9 +218,10 @@ class ProductoStockRestante {
   final int     cantidadVendida;
   final int     cantidadReservada; 
   final int     cantidadRestante;
-  final bool    enStockHoy;       // ← NUEVO
+  final bool    enStockHoy;  
+  int? cantidad;     // ← NUEVO
 
-  const ProductoStockRestante({
+   ProductoStockRestante({
     required this.productoId,
     required this.nombre,
     required this.precio,
@@ -229,7 +230,8 @@ class ProductoStockRestante {
     required this.cantidadVendida,
     this.cantidadReservada = 0,
     required this.cantidadRestante,
-    this.enStockHoy = true,       // ← NUEVO
+    this.enStockHoy = true,  
+    this.cantidad,     // ← NUEVO
   });
 
   factory ProductoStockRestante.fromJson(Map<String, dynamic> j) =>

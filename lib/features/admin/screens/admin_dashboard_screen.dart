@@ -5,6 +5,7 @@ import '../../../core/constants/colores.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../providers/admin_provider.dart';
 import 'repartidores_screen.dart';
+import 'recargas_screen.dart';
 
 class AdminDashboardScreen extends ConsumerWidget {
   const AdminDashboardScreen({super.key});
@@ -72,7 +73,17 @@ class AdminDashboardScreen extends ConsumerWidget {
               color: AppColores.accent,
               onTap: () => context.push('/admin/vendedores'),
             ),
-            _MenuCard(
+           _MenuCard(
+                  icono: '📦',
+                  titulo: 'Recargas',
+                  subtitulo: 'Solicitudes de stock en ruta',
+                  color: AppColores.warning,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const RecargasScreen()),
+                  ),
+                ),
+              _MenuCard(
               icono: '🚚', titulo: 'Repartidores',
               subtitulo: 'Gestiona el equipo de entrega',
               color: AppColores.accent,

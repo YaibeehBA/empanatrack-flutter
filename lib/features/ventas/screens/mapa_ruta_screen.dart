@@ -10,17 +10,15 @@ import 'package:latlong2/latlong.dart';
 
 import '../../../../core/constants/colores.dart';
 import '../../../../core/network/api_client.dart';
-import '../../../core/services/websocket_service.dart';
-
 import '../../../core/services/ubicacion_service.dart';
+import '../../../core/services/websocket_service.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/ruta_activa_models.dart';
-// ✅ CORREGIDO: eliminado "hide reservasEmpresaProvider"
-//    reservasEmpresaProvider vive únicamente en pedidos_vendedor_provider.dart
 import '../providers/ruta_activa_provider.dart';
 import '../providers/reporte_provider.dart';
 import '../providers/pedidos_vendedor_provider.dart' as ped;
 import '../providers/ventas_provider.dart';
+import '../providers/recarga_stock_provider.dart';
 
 import '../widgets/empresa_marker.dart';
 import '../widgets/empresa_panel.dart';
@@ -30,6 +28,7 @@ import '../widgets/toast_alerta.dart';
 import 'dashboard_screen.dart';
 import 'entregar_reserva_screen.dart';
 import 'stock_diario_screen.dart';
+import 'selector_recarga_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTES
@@ -116,7 +115,43 @@ class _RutaCalculada {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PANTALLA
+// MARCADOR PUNTO DE RECARGA
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MarkerRecarga extends StatelessWidget {
+  const _MarkerRecarga();
+
+  @override
+  Widget build(BuildContext context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color:        AppColores.success,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [BoxShadow(
+                color:      AppColores.success.withOpacity(0.4),
+                blurRadius: 6,
+              )],
+            ),
+            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.inventory_2_rounded, color: Colors.white, size: 12),
+              SizedBox(width: 4),
+              Text('Punto de recarga',
+                  style: TextStyle(
+                      color: Colors.white, fontSize: 10,
+                      fontWeight: FontWeight.bold)),
+            ]),
+          ),
+          const Icon(Icons.location_on_rounded,
+              color: AppColores.success, size: 24),
+        ],
+      );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PANTALLA PRINCIPAL
 // ─────────────────────────────────────────────────────────────────────────────
 
 class MapaRutaScreen extends ConsumerStatefulWidget {
@@ -143,9 +178,15 @@ class _MapaRutaScreenState extends ConsumerState<MapaRutaScreen> {
   bool            _viendoResumen     = false;
 
   EmpresaRuta?    _puntoInicioOptimo;
+  LatLng?         _puntoRecarga;
+
+  // ── Mensaje inline (reemplaza SnackBar para evitar context unsafe) ────────
+  String? _mensajeInline;
+  bool    _mensajeInlineError = false;
+  Timer?  _mensajeTimer;
 
   final _mapCtrl = MapController();
-  StreamSubscription<Position>? _gpsSub;
+  StreamSubscription<Position>?             _gpsSub;
   StreamSubscription<Map<String, dynamic>>? _wsReservasSub;
 
   // ── Distancia al punto de inicio ──────────────────────────────────────────
@@ -159,54 +200,54 @@ class _MapaRutaScreenState extends ConsumerState<MapaRutaScreen> {
     );
   }
 
+  // ── Mostrar mensaje inline seguro (sin context) ───────────────────────────
+  void _mostrarMensaje(String msg, {bool error = false}) {
+    if (!mounted) return;
+    _mensajeTimer?.cancel();
+    setState(() {
+      _mensajeInline      = msg;
+      _mensajeInlineError = error;
+    });
+    _mensajeTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _mensajeInline = null);
+    });
+  }
+
   // ── Ciclo de vida ─────────────────────────────────────────────────────────
   @override
-void initState() {
-  super.initState();
-  // Activa el notifier WS del mapa (escucha reservas en tiempo real)
-  ref.read(ped.reservasMapaProvider);
-  _inicializar();
-  _escucharWsReservas(); // ✅ FIX: suscripción directa para forzar rebuild
-}
- 
-// 4. Agregar este método en _MapaRutaScreenState:
-void _escucharWsReservas() {
-  _wsReservasSub?.cancel();
-  _wsReservasSub = WebSocketService().mensajes.listen((msg) {
-    final tipo = msg['tipo'] as String?;
- 
-    // Estos eventos cambian la cantidad de reservas visibles en el mapa
-    if (tipo == 'reserva_aceptada_propia' ||
-        tipo == 'reserva_entregada'        ||
-        tipo == 'reserva_liberada'         ||
-        tipo == 'reserva_cancelada'        ||
-        tipo == 'nueva_reserva') {
- 
-      if (!mounted) return;
- 
-      final empresaId = msg['empresa_id'] as String?;
- 
-      // Invalidar el provider específico para que el Consumer
-      // del EmpresaPanel recargue el count desde el backend
-      if (empresaId != null) {
-        ref.invalidate(ped.reservasEmpresaProvider(empresaId));
-      } else {
-        ref.invalidate(ped.reservasEmpresaProvider);
-      }
- 
-      // ✅ CLAVE: setState fuerza la reconstrucción del árbol completo,
-      // incluyendo el Consumer del EmpresaPanel aunque no esté visible.
-      // Sin esto, Riverpod invalida el provider pero nadie lo observa
-      // y el widget nunca se reconstruye.
-      setState(() {});
-    }
-  });
-}
- 
+  void initState() {
+    super.initState();
+    ref.read(ped.reservasMapaProvider);
+    _inicializar();
+    _escucharWsReservas();
+  }
 
-@override
+  void _escucharWsReservas() {
+    _wsReservasSub?.cancel();
+    _wsReservasSub = WebSocketService().mensajes.listen((msg) {
+      final tipo = msg['tipo'] as String?;
+      if (tipo == 'reserva_aceptada_propia' ||
+          tipo == 'reserva_entregada'        ||
+          tipo == 'reserva_liberada'         ||
+          tipo == 'reserva_cancelada'        ||
+          tipo == 'nueva_reserva') {
+        if (!mounted) return;
+        final empresaId = msg['empresa_id'] as String?;
+        if (empresaId != null) {
+          ref.invalidate(ped.reservasEmpresaProvider(empresaId));
+        } else {
+          ref.invalidate(ped.reservasEmpresaProvider);
+        }
+        setState(() {});
+      }
+    });
+  }
+
+  @override
   void dispose() {
-    _wsReservasSub?.cancel(); // ✅ cancelar suscripción WS
+    _mensajeTimer?.cancel();
+    ref.read(recargaStockProvider.notifier).detener();
+    _wsReservasSub?.cancel();
     _gpsSub?.cancel();
     UbicacionRutaVendedorService().detener();
     _mapCtrl.dispose();
@@ -225,6 +266,8 @@ void _escucharWsReservas() {
       _optimizacionLista = false;
       _puntoInicioOptimo = null;
       _viendoResumen     = false;
+      _puntoRecarga      = null;
+      _mensajeInline     = null;
     });
 
     await _obtenerPosicion();
@@ -255,6 +298,7 @@ void _escucharWsReservas() {
       } else {
         _sesionId = estado.sesion!.id;
         setState(() => _fase = FaseRuta.enRuta);
+        ref.read(recargaStockProvider.notifier).iniciar(_sesionId!);
 
         final sesion = ref.read(authProvider).sesion;
         if (sesion != null) {
@@ -321,7 +365,6 @@ void _escucharWsReservas() {
       setState(() {
         _puntoInicioOptimo = ordenadas.isNotEmpty ? ordenadas.first : null;
         _optimizacionLista = true;
-
         _estadoHoy = EstadoRutaHoy(
           tieneRuta:        _estadoHoy!.tieneRuta,
           stockLleno:       _estadoHoy!.stockLleno,
@@ -336,21 +379,14 @@ void _escucharWsReservas() {
           completada:       _estadoHoy!.completada,
           sesionCompletada: _estadoHoy!.sesionCompletada,
         );
-
         _rutaCalles = calculada.polilinea;
       });
 
-      debugPrint(
-        '✅ Ruta cargada: ${calculada.paradas.length} paradas, '
-        '${calculada.polilinea.length} puntos, fuente=${calculada.fuente}',
-      );
-
       if (calculada.polilinea.isNotEmpty) {
-        final puntos = [
+        _ajustarZoom([
           if (_miPosicion != null) _miPosicion!,
           ...calculada.polilinea,
-        ];
-        _ajustarZoom(puntos);
+        ]);
       }
 
     } catch (e) {
@@ -372,9 +408,7 @@ void _escucharWsReservas() {
           perm == LocationPermission.deniedForever) return;
 
       final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
       if (mounted) {
         setState(() => _miPosicion = LatLng(pos.latitude, pos.longitude));
@@ -395,10 +429,8 @@ void _escucharWsReservas() {
       setState(() => _miPosicion = nueva);
       if (_siguiendo) _mapCtrl.move(nueva, _mapCtrl.camera.zoom);
       _verificarProximidad(nueva);
-
       if (_fase == FaseRuta.enRuta && _sesionId != null) {
-        UbicacionRutaVendedorService()
-            .enviarPosicion(pos.latitude, pos.longitude);
+        UbicacionRutaVendedorService().enviarPosicion(pos.latitude, pos.longitude);
       }
     });
   }
@@ -419,15 +451,13 @@ void _escucharWsReservas() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       try {
-        _mapCtrl.fitCamera(
-          CameraFit.bounds(
-            bounds: LatLngBounds(
-              LatLng(minLat - 0.003, minLng - 0.003),
-              LatLng(maxLat + 0.003, maxLng + 0.003),
-            ),
-            padding: const EdgeInsets.fromLTRB(40, 120, 40, 220),
+        _mapCtrl.fitCamera(CameraFit.bounds(
+          bounds: LatLngBounds(
+            LatLng(minLat - 0.003, minLng - 0.003),
+            LatLng(maxLat + 0.003, maxLng + 0.003),
           ),
-        );
+          padding: const EdgeInsets.fromLTRB(40, 120, 40, 220),
+        ));
       } catch (_) {}
     });
   }
@@ -442,21 +472,13 @@ void _escucharWsReservas() {
     for (final emp in _estadoHoy!.empresas
         .where((e) => e.tieneCoordenadas && !e.visitada)) {
       final dist = _haversine(
-        pos.latitude, pos.longitude,
-        emp.latitud!, emp.longitud!,
-      );
-      if (dist <= _kDistanciaEmpresa) {
-        empCercana = emp;
-        break;
-      }
+        pos.latitude, pos.longitude, emp.latitud!, emp.longitud!);
+      if (dist <= _kDistanciaEmpresa) { empCercana = emp; break; }
     }
 
     if (empCercana == null) {
       if (_empresaCercana != null) {
-        setState(() {
-          _empresaCercana = null;
-          _llegadaEmpresa = null;
-        });
+        setState(() { _empresaCercana = null; _llegadaEmpresa = null; });
       }
       return;
     }
@@ -464,10 +486,7 @@ void _escucharWsReservas() {
     if (_empresaCercana?.id != empCercana.id) {
       final llegadaBackend = empCercana.llegadaDateTime;
       final llegada        = llegadaBackend ?? DateTime.now();
-      setState(() {
-        _empresaCercana = empCercana;
-        _llegadaEmpresa = llegada;
-      });
+      setState(() { _empresaCercana = empCercana; _llegadaEmpresa = llegada; });
       if (llegadaBackend == null) _registrarLlegada(empCercana);
     }
   }
@@ -511,9 +530,9 @@ void _escucharWsReservas() {
   //  HAVERSINE
   // ══════════════════════════════════════════════════════════════════════════
   double _haversine(double la1, double lo1, double la2, double lo2) {
-    const r  = 6371000.0;
+    const r    = 6371000.0;
     final dLat = _rad(la2 - la1), dLon = _rad(lo2 - lo1);
-    final a = sin(dLat / 2) * sin(dLat / 2) +
+    final a    = sin(dLat / 2) * sin(dLat / 2) +
         cos(_rad(la1)) * cos(_rad(la2)) * sin(dLon / 2) * sin(dLon / 2);
     return r * 2 * atan2(sqrt(a), sqrt(1 - a));
   }
@@ -559,6 +578,7 @@ void _escucharWsReservas() {
     );
 
     if (sesionId != null && mounted) {
+      ref.read(recargaStockProvider.notifier).iniciar(sesionId);
       final sesion = ref.read(authProvider).sesion;
       if (sesion != null) {
         UbicacionRutaVendedorService().iniciar(
@@ -579,9 +599,7 @@ void _escucharWsReservas() {
   }
 
   Future<void> _marcarVisitada() async {
-    if (_empresaCercana == null || _sesionId == null || _miPosicion == null) {
-      return;
-    }
+    if (_empresaCercana == null || _sesionId == null || _miPosicion == null) return;
 
     setState(() => _panelCargando = true);
     if (!mounted) return;
@@ -598,7 +616,7 @@ void _escucharWsReservas() {
     if (!mounted) return;
 
     if (error != null) {
-      _mostrarSnack(error, error: true);
+      _mostrarMensaje(error, error: true);
       setState(() => _panelCargando = false);
       return;
     }
@@ -611,7 +629,6 @@ void _escucharWsReservas() {
       _panelCargando  = false;
     });
 
-    // Invalidar stock y reservas de la empresa recién visitada
     ref.invalidate(stockRestanteProvider);
     ref.invalidate(ped.reservasActivasProvider);
     ref.invalidate(ped.reservasEmpresaProvider(empresaId));
@@ -632,7 +649,7 @@ void _escucharWsReservas() {
         .completarRuta(_sesionId!);
 
     if (!success) {
-      if (mounted) _mostrarSnack('Error al finalizar ruta.', error: true);
+      if (mounted) _mostrarMensaje('Error al finalizar ruta.', error: true);
       return;
     }
 
@@ -655,58 +672,106 @@ void _escucharWsReservas() {
         '-${n.day.toString().padLeft(2, '0')}';
   }
 
-  void _mostrarSnack(String msg, {bool error = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content:         Text(msg),
-      backgroundColor: error ? AppColores.danger : AppColores.success,
-    ));
-  }
+  // ✅ _mostrarSnack eliminado — usar _mostrarMensaje que es seguro
+  void _mostrarSnack(String msg, {bool error = false}) =>
+      _mostrarMensaje(msg, error: error);
 
   Future<void> _abrirNuevaVenta() async {
     await context.push('/nueva-venta');
     if (mounted) ref.invalidate(stockRestanteProvider);
   }
 
-  Future<void> _registrarCobro() async {
-    _mostrarSnack('Función de cobros en desarrollo');
+  Future<void> _abrirReservas(
+    EmpresaRuta empresa,
+    List<ped.PedidoVendedor> reservas,
+  ) async {
+    final actualizo = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EntregarReservaScreen(
+          empresa:  empresa,
+          reservas: reservas,
+        ),
+      ),
+    );
+
+    if (actualizo == true && mounted) {
+      ref.invalidate(stockRestanteProvider);
+      ref.invalidate(ped.reservasEmpresaProvider(empresa.id));
+      ref.invalidate(ped.reservasActivasProvider);
+      setState(() {});
+      _mostrarMensaje('✅ Reserva entregada correctamente');
+    }
   }
 
-  // ── Abrir pantalla de reservas de la empresa ──────────────────────────────
- Future<void> _abrirReservas(
-  EmpresaRuta empresa,
-  List<ped.PedidoVendedor> reservas,
-) async {
-  final actualizo = await Navigator.push<bool>(
-    context,
-    MaterialPageRoute(
-      builder: (_) => EntregarReservaScreen(
-        empresa:  empresa,
-        reservas: reservas,
-      ),
-    ),
-  );
- 
-  if (actualizo == true && mounted) {
-    ref.invalidate(stockRestanteProvider);
-    ref.invalidate(ped.reservasEmpresaProvider(empresa.id));
-    ref.invalidate(ped.reservasActivasProvider); // ✅ faltaba
-    setState(() {}); // ✅ forzar rebuild del badge
- 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content:         Text('✅ Reserva entregada correctamente'),
-        backgroundColor: AppColores.success,
-        duration:        Duration(seconds: 2),
+  void _registrarCobro() {
+    _mostrarMensaje('Funcionalidad de registro de cobro en desarrollo');
+  }
+
+  Future<void> _abrirSelectorRecarga() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SelectorRecargaScreen(
+          onRecargaSolicitada: () {
+            ref.invalidate(recargaStockProvider);
+            _mostrarMensaje('✅ Solicitud enviada. Espera la respuesta del admin.');
+          },
+        ),
       ),
     );
   }
-}
+
+  Future<void> _completarRecarga() async {
+    setState(() => _panelCargando = true);
+
+    final resultado = await ref
+        .read(recargaStockProvider.notifier)
+        .completarRecarga();
+
+    if (!mounted) return;
+
+    setState(() {
+      _panelCargando = false;
+      _puntoRecarga  = null;
+    });
+
+    ref.invalidate(stockRestanteProvider);
+
+    // ✅ _mostrarMensaje es seguro — no usa context después de await
+    if (resultado.error != null) {
+      _mostrarMensaje(resultado.error!, error: true);
+    } else {
+      _mostrarMensaje('✅ Recarga completada. Puedes continuar tu ruta.');
+    }
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   //  BUILD
   // ══════════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
+
+    // ✅ listener seguro — usa _mostrarMensaje, no ScaffoldMessenger
+    ref.listen<RecargaStock>(recargaStockProvider, (prev, next) {
+      if (next.esAceptada &&
+          next.latRecarga != null &&
+          next.lngRecarga != null) {
+        setState(() {
+          _puntoRecarga = LatLng(next.latRecarga!, next.lngRecarga!);
+        });
+        ref.invalidate(stockRestanteProvider);
+        _mostrarMensaje('📦 ¡Recarga aprobada! Ve al punto indicado en el mapa.');
+      }
+      if (next.esRechazada) {
+        setState(() => _puntoRecarga = null);
+        _mostrarMensaje(
+          '❌ Solicitud rechazada. ${next.notasAdmin ?? ""}',
+          error: true,
+        );
+      }
+    });
+
     switch (_fase) {
       case FaseRuta.cargando:
         return _scaffoldCargando();
@@ -773,8 +838,7 @@ void _escucharWsReservas() {
       title: const Text('Mi Ruta',
           style: TextStyle(fontWeight: FontWeight.bold)),
       actions: [
-        IconButton(
-            icon: const Icon(Icons.refresh), onPressed: _inicializar),
+        IconButton(icon: const Icon(Icons.refresh), onPressed: _inicializar),
       ],
     ),
     body: const Center(
@@ -785,19 +849,16 @@ void _escucharWsReservas() {
           children: [
             Text('🗺️', style: TextStyle(fontSize: 64)),
             SizedBox(height: 20),
-            Text(
-              'Sin ruta asignada hoy',
-              style: TextStyle(
-                  fontSize:   20,
-                  fontWeight: FontWeight.bold,
-                  color:      AppColores.textPrimary),
-            ),
+            Text('Sin ruta asignada hoy',
+                style: TextStyle(
+                    fontSize:   20,
+                    fontWeight: FontWeight.bold,
+                    color:      AppColores.textPrimary)),
             SizedBox(height: 10),
             Text(
               'El administrador aún no te ha asignado una ruta para hoy.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: AppColores.textSecond, fontSize: 14),
+              style: TextStyle(color: AppColores.textSecond, fontSize: 14),
             ),
           ],
         ),
@@ -825,25 +886,16 @@ void _escucharWsReservas() {
           ),
           children: [
             TileLayer(
-              urlTemplate:
-                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              urlTemplate:         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.empanatrack.app',
             ),
 
             if (_rutaCalles.length > 1)
               PolylineLayer(polylines: [
-                Polyline(
-                  points:      _rutaCalles,
-                  color:       Colors.white,
-                  strokeWidth: 7,
-                  strokeCap:   StrokeCap.round,
-                ),
-                Polyline(
-                  points:      _rutaCalles,
-                  color:       AppColores.primary,
-                  strokeWidth: 4,
-                  strokeCap:   StrokeCap.round,
-                ),
+                Polyline(points: _rutaCalles, color: Colors.white,
+                    strokeWidth: 7, strokeCap: StrokeCap.round),
+                Polyline(points: _rutaCalles, color: AppColores.primary,
+                    strokeWidth: 4, strokeCap: StrokeCap.round),
               ]),
 
             MarkerLayer(markers: [
@@ -856,10 +908,17 @@ void _escucharWsReservas() {
                     child:  EmpresaMarker(
                       empresa:   emp,
                       esCercana: _empresaCercana?.id == emp.id,
-                      esInicio:
-                          !enRuta && _puntoInicioOptimo?.id == emp.id,
+                      esInicio:  !enRuta && _puntoInicioOptimo?.id == emp.id,
                     ),
                   ),
+
+              if (_puntoRecarga != null)
+                Marker(
+                  point:  _puntoRecarga!,
+                  width:  150,
+                  height: 65,
+                  child:  const _MarkerRecarga(),
+                ),
 
               if (_miPosicion != null)
                 Marker(
@@ -867,21 +926,15 @@ void _escucharWsReservas() {
                   width:  24,
                   height: 24,
                   child: Container(
-                    width:  24,
-                    height: 24,
+                    width:  24, height: 24,
                     decoration: BoxDecoration(
                       color:  AppColores.primary,
                       shape:  BoxShape.circle,
-                      border: Border.all(
-                          color: Colors.white, width: 2.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color:        AppColores.primary
-                              .withValues(alpha: 0.4),
-                          blurRadius:   6,
-                          spreadRadius: 1,
-                        )
-                      ],
+                      border: Border.all(color: Colors.white, width: 2.5),
+                      boxShadow: [BoxShadow(
+                        color:        AppColores.primary.withOpacity(0.4),
+                        blurRadius:   6, spreadRadius: 1,
+                      )],
                     ),
                   ),
                 ),
@@ -895,7 +948,7 @@ void _escucharWsReservas() {
           child: RutaHeader(estado: _estadoHoy),
         ),
 
-        // Toast alerta
+        // Toast alerta distancia inicio
         if (_mostrarAlerta)
           Positioned(
             top: 110, left: 16, right: 16,
@@ -904,14 +957,52 @@ void _escucharWsReservas() {
                   ? 'Calculando ruta óptima…'
                   : 'Debes estar en el punto de inicio',
               subtitulo: !_optimizacionLista
-                  ? 'Espera un momento mientras el servidor calcula'
-                    ' la mejor ruta.'
+                  ? 'Espera un momento mientras el servidor calcula la mejor ruta.'
                   : _puntoInicioOptimo != null
                       ? 'Dirígete a ${_puntoInicioOptimo!.nombre}. '
-                        'Debes estar a menos de '
-                        '${_kDistanciaInicio.toInt()} m.'
+                        'Debes estar a menos de ${_kDistanciaInicio.toInt()} m.'
                       : 'Dirígete al punto de inicio para comenzar.',
               onCerrar: () => setState(() => _mostrarAlerta = false),
+            ),
+          ),
+
+        //  Mensaje inline seguro (reemplaza SnackBar)
+        if (_mensajeInline != null)
+          Positioned(
+            bottom: 210, left: 16, right: 16,
+            child: Material(
+              elevation:    6,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color:        _mensajeInlineError
+                      ? AppColores.danger : AppColores.success,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(children: [
+                  Icon(
+                    _mensajeInlineError
+                        ? Icons.error_outline
+                        : Icons.check_circle_outline,
+                    color: Colors.white, size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(
+                    _mensajeInline!,
+                    style: const TextStyle(
+                        color:      Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize:   13),
+                  )),
+                  GestureDetector(
+                    onTap: () => setState(() => _mensajeInline = null),
+                    child: const Icon(Icons.close,
+                        color: Colors.white, size: 16),
+                  ),
+                ]),
+              ),
             ),
           ),
 
@@ -933,11 +1024,8 @@ void _escucharWsReservas() {
                 setState(() => _siguiendo = true);
                 _mapCtrl.move(_miPosicion!, _mapCtrl.camera.zoom);
               },
-              child: const Icon(
-                Icons.my_location_rounded,
-                color: AppColores.primary,
-                size:  20,
-              ),
+              child: const Icon(Icons.my_location_rounded,
+                  color: AppColores.primary, size: 20),
             ),
           ),
       ]),
@@ -946,57 +1034,66 @@ void _escucharWsReservas() {
 
   // ── Panel inferior ────────────────────────────────────────────────────────
   Widget _buildPanelInferior(bool enRuta) {
-    // ── Panel de empresa cercana (cuando el vendedor está en una empresa) ──
+    // ── Panel de empresa cercana ──────────────────────────────────────────
     if (_empresaCercana != null && enRuta) {
       return Consumer(builder: (ctx, ref2, _) {
-        // ✅ CORREGIDO: usa ped.reservasEmpresaProvider (List<PedidoVendedor>)
-        //    que es el único que existe ahora — ya no hay duplicado en
-        //    ruta_activa_provider.dart
+        final stockAsync = ref2.watch(stockRestanteProvider);
+        final sinStock   = stockAsync.maybeWhen(
+          data:   (s) => s.sinStock,
+          orElse: ()  => false,
+        );
+
         final reservasAsync = ref2.watch(
             ped.reservasEmpresaProvider(_empresaCercana!.id));
-
         final cantidadReservas = reservasAsync.maybeWhen(
           data:   (list) => list.length,
           orElse: () => 0,
         );
 
         return EmpresaPanel(
-          empresa:          _empresaCercana!,
-          llegadaEn:        _llegadaEmpresa,
-          cargando:         _panelCargando,
-          onNuevaVenta:     _abrirNuevaVenta,
-          cantidadReservas: cantidadReservas,
+          empresa:            _empresaCercana!,
+          llegadaEn:          _llegadaEmpresa,
+          cargando:           _panelCargando,
+          sinStock:           sinStock,
+          onNuevaVenta:       _abrirNuevaVenta,
+          cantidadReservas:   cantidadReservas,
           onVerReservas: () => _abrirReservas(
             _empresaCercana!,
-            // ✅ asData?.value es List<PedidoVendedor> — tipo correcto
             reservasAsync.asData?.value ?? [],
           ),
-          onMarcarVisitada: _marcarVisitada,
-          onRegistrarCobro: _registrarCobro,
+          onRegistrarCobro:   _registrarCobro,
+          onMarcarVisitada:   _marcarVisitada,
+          onSolicitarRecarga: _abrirSelectorRecarga,
+          onFinalizarRuta:    _completarRuta,
         );
       });
     }
 
-    // ── Panel inferior genérico (stock, iniciar/finalizar ruta) ──────────
+    // ── Panel inferior genérico ───────────────────────────────────────────
     return Consumer(
-      builder: (ctx, ref, _) {
-        final stockAsync = ref.watch(stockRestanteProvider);
+      builder: (ctx, ref2, _) {
+        final stockAsync = ref2.watch(stockRestanteProvider);
         final sinStock   = stockAsync.maybeWhen(
           data:   (s) => s.sinStock,
           orElse: ()  => false,
         );
+        final recarga = ref2.watch(recargaStockProvider);
+
         return PanelInferiorRuta(
-          estado:            _estadoHoy,
-          enRuta:            enRuta,
-          cargando:          _panelCargando,
-          sinStock:          sinStock && enRuta,
-          puntoInicio:       _puntoInicioOptimo,
-          distanciaAlInicio: _distanciaAlInicio,
-          optimizacionLista: _optimizacionLista,
-          viendoResumen:     _viendoResumen,
-          onIniciarRuta:     _iniciarRuta,
-          onNuevaVenta:      _abrirNuevaVenta,
-          onFinalizarRuta:   _completarRuta,
+          estado:             _estadoHoy,
+          enRuta:             enRuta,
+          cargando:           _panelCargando,
+          sinStock:           sinStock && enRuta,
+          puntoInicio:        _puntoInicioOptimo,
+          distanciaAlInicio:  _distanciaAlInicio,
+          optimizacionLista:  _optimizacionLista,
+          viendoResumen:      _viendoResumen,
+          recarga:            recarga,
+          onIniciarRuta:      _iniciarRuta,
+          onNuevaVenta:       _abrirNuevaVenta,
+          onFinalizarRuta:    _completarRuta,
+          onSolicitarRecarga: _abrirSelectorRecarga,
+          onCompletarRecarga: _completarRecarga,
           onVerResumen: () {
             if ((_estadoHoy?.sesionCompletada ?? false) ||
                 (_estadoHoy?.completada       ?? false)) {
